@@ -69,7 +69,9 @@ export function MoneyInput({
   const [text, setText] = useState(value != null && value !== 0 ? centsToInput(value) : '');
   const last = useRef(value);
   useEffect(() => {
-    if (value !== last.current) {
+    // só reescreve o texto quando o valor mudou de fora (ex.: limpar o formulário),
+    // nunca enquanto a pessoa está digitando (vazio e zero são equivalentes)
+    if ((value ?? 0) !== (last.current ?? 0)) {
       setText(value != null && value !== 0 ? centsToInput(value) : '');
       last.current = value;
     }

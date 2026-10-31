@@ -33,14 +33,18 @@ step('primeiro acesso exibe boas-vindas');
 // --- conta com saldo inicial
 await page.click('a[href="#/contas"]');
 await page.locator('.card.stat', { hasText: 'Conta principal' }).getByLabel('Editar conta').click();
-await modal().locator('input.money').fill('5.000,00');
+// digita tecla por tecla, como uma pessoa (vírgula no meio não pode apagar o valor)
+await modal().locator('input.money').fill('');
+await modal().locator('input.money').pressSequentially('5000,19');
 await modal().getByRole('button', { name: 'Salvar' }).click();
-await expectText('R$ 5.000,00');
+await expectText('R$ 5.000,19');
 step('saldo inicial da conta');
 
 // --- lançamento rápido via tecla N
 await page.click('a[href="#/"]');
 await page.keyboard.press('n');
+await modal().getByLabel('Valor', { exact: true }).pressSequentially('338,19');
+if ((await modal().getByLabel('Valor', { exact: true }).inputValue()) !== '338,19') throw new Error('Campo de valor não aceitou centavos');
 await modal().getByLabel('Valor', { exact: true }).fill('80');
 await modal().locator('#qe-merchant').fill('iFood');
 await modal().getByLabel('Categoria', { exact: true }).selectOption({ label: 'Aplicativos' });

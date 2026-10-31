@@ -14,6 +14,11 @@ describe('money', () => {
     expect(parseBRL('R$ 1.234,56')).toBe(123456);
     expect(parseBRL('1.234')).toBe(123400);
     expect(parseBRL('12.5')).toBe(1250);
+    expect(parseBRL('338,')).toBe(33800);
+    expect(parseBRL('338,1')).toBe(33810);
+    expect(parseBRL('338,19')).toBe(33819);
+    expect(parseBRL('1.338,19')).toBe(133819);
+    expect(parseBRL(',')).toBeNull();
     expect(parseBRL('abc')).toBeNull();
     expect(parseBRL('')).toBeNull();
   });

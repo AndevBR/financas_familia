@@ -33,6 +33,8 @@ export function parseBRL(input: string): Cents | null {
     // "1.234" no formato brasileiro = mil duzentos e trinta e quatro
     s = s.replace(/\./g, '');
   }
+  // aceita separador sem centavos ainda digitados ("338," ou "338.")
+  if (s.endsWith('.')) s = s.slice(0, -1);
   if (!/^\d+(\.\d+)?$/.test(s)) return null;
   const cents = Math.round(parseFloat(s) * 100);
   return negative ? -cents : cents;
