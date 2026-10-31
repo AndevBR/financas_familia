@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { Transaction } from '../domain/types';
 import type { QuickEntryInput } from '../domain/transactions';
 import { Modal } from './components/ui';
+import type { AttachmentLink } from '../services/attachments';
 
 interface ConfirmOptions {
   title: string;
@@ -19,6 +20,7 @@ interface AppApi {
   openEntry: (prefill?: Partial<QuickEntryInput>) => void;
   openEdit: (t: Transaction) => void;
   openPayment: (t: Transaction) => void;
+  openAttachments: (target: AttachmentTarget) => void;
 }
 
 const Ctx = createContext<AppApi | null>(null);
@@ -29,10 +31,17 @@ export function useApp(): AppApi {
   return c;
 }
 
+export interface AttachmentTarget {
+  link: AttachmentLink;
+  title: string;
+  subtitle?: string;
+}
+
 export interface ModalState {
   entry?: Partial<QuickEntryInput> | true;
   edit?: Transaction;
   payment?: Transaction;
+  attachments?: AttachmentTarget;
 }
 
 export function AppProvider({ children, renderModals }: { children: ReactNode; renderModals: (s: ModalState, close: () => void) => ReactNode }) {
@@ -55,6 +64,7 @@ export function AppProvider({ children, renderModals }: { children: ReactNode; r
     openEntry: (prefill) => setModals({ entry: prefill ?? true }),
     openEdit: (t) => setModals({ edit: t }),
     openPayment: (t) => setModals({ payment: t }),
+    openAttachments: (target) => setModals({ attachments: target }),
   };
 
   const closeConfirm = (v: string | false) => {

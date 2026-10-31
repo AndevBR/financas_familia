@@ -12,6 +12,7 @@ Roda direto no navegador e os dados ficam salvos no próprio navegador (IndexedD
 - **Estabelecimentos lembrados** — quando digito "iFood", ele já preenche a última categoria e forma de pagamento que usei.
 - **Categorias e subcategorias** — tipo *Aplicativos › Farmácia* com estabelecimento *iFood*. Assim consigo ver tanto quanto gastei no iFood quanto quanto gastei com farmácia. Dá pra criar, editar e excluir.
 - **Contas a pagar e a receber** — vencidas, em aberto, pagas, pagamento parcial.
+- **Comprovantes** — dá pra anexar foto ou PDF do comprovante na hora de pagar (opcional) ou depois, nas contas que já foram pagas. Também funciona no pagamento da fatura do cartão.
 - **Cartões de crédito** — faturas, parcelamentos e limite usado. O pagamento da fatura não duplica as despesas (a compra já conta na categoria).
 - **Contas recorrentes** — internet, luz, escola, assinaturas... mensal, semanal ou anual. Dá pra pausar ou cancelar.
 - **Dashboard** — quanto entrou, quanto saiu, quanto falta pagar e quanto deve sobrar no fim do mês, com gráficos.
@@ -19,7 +20,7 @@ Roda direto no navegador e os dados ficam salvos no próprio navegador (IndexedD
 - **Orçamento** — limite por categoria com aviso quando chega em 80% e 100%.
 - **Oportunidades de economia** — mostra as categorias em que gastei mais que a média e simula quanto daria pra economizar.
 - **Contas e saldos** — banco, dinheiro e carteira digital, com transferências entre elas.
-- **Backup** — exporta e importa tudo em JSON.
+- **Backup** — exporta e importa tudo em JSON (os comprovantes vão junto).
 - Tema claro/escuro e funciona no celular.
 
 ## Rodando no computador

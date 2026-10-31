@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Account,
+  Attachment,
   Budget,
   Card,
   Category,
@@ -31,6 +32,7 @@ export class FinanceDB extends Dexie {
   recurrences!: Table<Recurrence, string>;
   budgets!: Table<Budget, string>;
   settings!: Table<Settings, string>;
+  attachments!: Table<Attachment, string>;
 
   constructor(name = 'financas-familia') {
     super(name);
@@ -47,6 +49,10 @@ export class FinanceDB extends Dexie {
       recurrences: 'id, state',
       budgets: 'id, &categoryId',
       settings: 'id',
+    });
+    // v2: comprovantes de pagamento
+    this.version(2).stores({
+      attachments: 'id, transactionId, invoicePaymentId, createdAt',
     });
   }
 }
@@ -66,6 +72,7 @@ export const TABLES = [
   'recurrences',
   'budgets',
   'settings',
+  'attachments',
 ] as const;
 
 export type TableName = (typeof TABLES)[number];

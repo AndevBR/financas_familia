@@ -4,6 +4,15 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+// arquivos de comprovante de exemplo
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'comprovantes-'));
+const pdfPath = path.join(tmp, 'boleto-luz.pdf');
+fs.writeFileSync(pdfPath, '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF');
+const pngPath = path.join(tmp, 'pix.png');
+fs.writeFileSync(pngPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:4173';
 const SHOTS = process.env.SHOTS_DIR;
@@ -85,10 +94,31 @@ await page.keyboard.press('Enter');
 await expectText('Conta de luz');
 await page.locator('tr', { hasText: 'Conta de luz' }).getByRole('button', { name: 'Pagar' }).click();
 await modal().getByLabel('Valor do pagamento').fill('100');
+await modal().getByLabel('Arquivo do comprovante').setInputFiles(pdfPath);
+await modal().getByText('boleto-luz.pdf').waitFor();
 await modal().getByRole('button', { name: 'Confirmar' }).click();
 await saved('Pagamento parcial registrado');
 await page.locator('tr', { hasText: 'Conta de luz' }).getByText('Parcial').waitFor();
-step('conta a pagar + pagamento parcial');
+await page.locator('tr', { hasText: 'Conta de luz' }).getByLabel('Ver comprovantes (1)').waitFor();
+step('conta a pagar + pagamento parcial com comprovante');
+
+// comprovante anexado depois, numa conta já paga
+await page.getByRole('tab', { name: 'Pagas' }).click();
+await page.locator('tr', { hasText: 'iFood' }).first().getByLabel('Anexar comprovante').click();
+await modal().getByLabel('Arquivo do comprovante').setInputFiles(pngPath);
+await page.locator('.toast', { hasText: 'Comprovante anexado' }).waitFor();
+await modal().getByLabel('Ver pix.png').first().click();
+await modal().locator('.attach-preview img').waitFor();
+await modal().getByLabel('Excluir pix.png').click();
+await page.locator('.modal').last().getByRole('button', { name: 'Excluir' }).click();
+await page.locator('.toast', { hasText: 'Comprovante excluído' }).waitFor();
+if (await modal().locator('.attach-preview').count()) throw new Error('Prévia continuou aberta após excluir');
+await modal().getByLabel('Arquivo do comprovante').setInputFiles(pngPath);
+await page.locator('.toast', { hasText: 'Comprovante anexado' }).last().waitFor();
+await shot('comprovantes');
+await modal().getByRole('button', { name: 'Fechar' }).last().click();
+await page.locator('tr', { hasText: 'iFood' }).first().getByLabel('Ver comprovantes (1)').waitFor();
+step('anexar, ver e excluir comprovante depois da baixa');
 
 // --- cartão + compra parcelada + pagamento da fatura
 await page.click('a[href="#/cartoes"]');
@@ -106,6 +136,13 @@ await modal().getByLabel('Categoria', { exact: true }).selectOption({ label: 'Ca
 await modal().getByLabel('Parcelas').selectOption('3');
 await page.keyboard.press('Enter');
 await saved('Compra lançada em 3 parcelas');
+// pagamento parcial da fatura com comprovante
+await page.getByRole('button', { name: 'Pagar fatura' }).click();
+await modal().locator('input.money').fill('50');
+await modal().getByLabel('Arquivo do comprovante').setInputFiles(pdfPath);
+await modal().getByRole('button', { name: 'Confirmar pagamento' }).click();
+await saved('Pagamento parcial da fatura registrado');
+await page.getByLabel('Ver comprovantes (1)').first().waitFor();
 await expectText('Parcelamentos em andamento');
 await expectText('0/3 parcelas');
 step('cartão e compra parcelada');

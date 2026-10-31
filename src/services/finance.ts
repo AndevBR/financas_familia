@@ -124,17 +124,26 @@ export async function deleteTransaction(id: ID, opts: { wholeGroup?: boolean } =
   if (!t) return 0;
   if (opts.wholeGroup && t.installment) {
     const ids = (await db.transactions.where('installment.groupId').equals(t.installment.groupId).primaryKeys()) as string[];
-    await db.transactions.bulkDelete(ids);
+    await db.transaction('rw', db.transactions, db.attachments, async () => {
+      await db.transactions.bulkDelete(ids);
+      await db.attachments.where('transactionId').anyOf(ids).delete();
+    });
     return ids.length;
   }
-  await db.transactions.delete(id);
+  await db.transaction('rw', db.transactions, db.attachments, async () => {
+    await db.transactions.delete(id);
+    await db.attachments.where('transactionId').equals(id).delete();
+  });
   return 1;
 }
 
-export async function registerPayment(id: ID, amount: Cents, date: ISODate, accountId: ID | undefined, db: FinanceDB = defaultDb) {
+/** Registra uma baixa e devolve o id do pagamento (para vincular o comprovante). */
+export async function registerPayment(id: ID, amount: Cents, date: ISODate, accountId: ID | undefined, db: FinanceDB = defaultDb): Promise<ID> {
   const t = await db.transactions.get(id);
   if (!t) throw new Error('Lançamento não encontrado.');
-  await db.transactions.put(addPayment(t, { id: newId(), amount, date, accountId }));
+  const paymentId = newId();
+  await db.transactions.put(addPayment(t, { id: paymentId, amount, date, accountId }));
+  return paymentId;
 }
 
 export async function settleTransaction(id: ID, date: ISODate = today(), accountId?: ID, db: FinanceDB = defaultDb) {
@@ -159,7 +168,10 @@ export async function payInvoice(p: Omit<InvoicePayment, 'id'>, db: FinanceDB = 
 }
 
 export async function deleteInvoicePayment(id: ID, db: FinanceDB = defaultDb) {
-  await db.invoicePayments.delete(id);
+  await db.transaction('rw', db.invoicePayments, db.attachments, async () => {
+    await db.invoicePayments.delete(id);
+    await db.attachments.where('invoicePaymentId').equals(id).delete();
+  });
 }
 
 export async function saveCard(card: Omit<Card, 'id'> & { id?: ID }, db: FinanceDB = defaultDb) {
@@ -170,9 +182,13 @@ export async function saveCard(card: Omit<Card, 'id'> & { id?: ID }, db: Finance
 
 /** Exclui o cartão e as compras/pagamentos de fatura vinculados. */
 export async function deleteCard(id: ID, db: FinanceDB = defaultDb) {
-  await db.transaction('rw', db.cards, db.transactions, db.invoicePayments, async () => {
-    await db.transactions.where('cardId').equals(id).delete();
-    await db.invoicePayments.where('cardId').equals(id).delete();
+  await db.transaction('rw', [db.cards, db.transactions, db.invoicePayments, db.attachments], async () => {
+    const txIds = (await db.transactions.where('cardId').equals(id).primaryKeys()) as string[];
+    const payIds = (await db.invoicePayments.where('cardId').equals(id).primaryKeys()) as string[];
+    await db.attachments.where('transactionId').anyOf(txIds).delete();
+    await db.attachments.where('invoicePaymentId').anyOf(payIds).delete();
+    await db.transactions.bulkDelete(txIds);
+    await db.invoicePayments.bulkDelete(payIds);
     await db.cards.delete(id);
   });
 }

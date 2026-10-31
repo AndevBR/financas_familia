@@ -22,6 +22,7 @@ import { isOverdue } from '../domain/transactions';
 import { today } from '../domain/dates';
 import { AppProvider, useApp } from './AppContext';
 import { PaymentModal } from './components/PaymentModal';
+import { AttachmentsModal } from './components/Attachments';
 import { TxFormModal } from './components/TxFormModal';
 import { useFinance, useLookups, type FinanceData } from './hooks/useFinance';
 import { setThemePref, useApplyTheme } from './hooks/useTheme';
@@ -168,6 +169,7 @@ export function App() {
             {m.entry && <TxFormModal data={data} onClose={close} prefill={m.entry === true ? undefined : m.entry} />}
             {m.edit && <TxFormModal data={data} onClose={close} editing={m.edit} />}
             {m.payment && <PaymentModal data={data} tx={m.payment} onClose={close} />}
+            {m.attachments && <AttachmentsModal {...m.attachments} attachments={data.attachments} onClose={close} />}
           </>
         )}
       >

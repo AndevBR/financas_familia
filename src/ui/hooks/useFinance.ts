@@ -2,12 +2,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { db } from '../../db/database';
 import type { DataSet } from '../../domain/reports';
-import type { Merchant, Person, Recurrence, Settings } from '../../domain/types';
+import type { Attachment, Merchant, Person, Recurrence, Settings } from '../../domain/types';
 
 export interface FinanceData extends DataSet {
   people: Person[];
   merchants: Merchant[];
   recurrences: Recurrence[];
+  attachments: Attachment[];
   settings?: Settings;
   loaded: boolean;
 }
@@ -24,13 +25,14 @@ const EMPTY: FinanceData = {
   people: [],
   merchants: [],
   recurrences: [],
+  attachments: [],
   loaded: false,
 };
 
 /** Carrega todos os dados e reage automaticamente a qualquer alteração no banco. */
 export function useFinance(): FinanceData {
   const data = useLiveQuery(async () => {
-    const [transactions, categories, subcategories, accounts, cards, invoicePayments, transfers, budgets, people, merchants, recurrences, settings] =
+    const [transactions, categories, subcategories, accounts, cards, invoicePayments, transfers, budgets, people, merchants, recurrences, settings, attachments] =
       await Promise.all([
         db.transactions.toArray(),
         db.categories.orderBy('order').toArray(),
@@ -44,9 +46,10 @@ export function useFinance(): FinanceData {
         db.merchants.toArray(),
         db.recurrences.toArray(),
         db.settings.get('app'),
+        db.attachments.toArray(),
       ]);
     subcategories.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-    return { transactions, categories, subcategories, accounts, cards, invoicePayments, transfers, budgets, people, merchants, recurrences, settings, loaded: true };
+    return { transactions, categories, subcategories, accounts, cards, invoicePayments, transfers, budgets, people, merchants, recurrences, settings, attachments, loaded: true };
   }, []);
   return data ?? EMPTY;
 }

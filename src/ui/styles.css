@@ -316,3 +316,17 @@ table.table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 @media (max-width: 1000px) { .grid-21 { grid-template-columns: 1fr; } }
 .capitalize::first-letter { text-transform: uppercase; }
 p.capitalize, span.capitalize { display: inline-block; }
+
+/* ---------- comprovantes ---------- */
+.attach-chip { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 4px 4px 4px 10px; min-height: 38px; background: var(--surface-2); min-width: 0; }
+.attach-chip .ellipsis { flex: 1; min-width: 0; }
+.attach-btn { position: relative; color: var(--text-3); }
+.attach-btn.has { color: var(--brand); }
+.attach-count { position: absolute; top: -2px; right: -3px; background: var(--brand); color: var(--brand-text); font-size: 0.62rem; font-weight: 700; border-radius: 999px; min-width: 15px; height: 15px; display: grid; place-items: center; padding: 0 3px; }
+.attach-thumb-btn { border: 0; padding: 0; background: none; cursor: pointer; border-radius: 8px; flex-shrink: 0; }
+.attach-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); display: block; }
+.attach-thumb.pdf { display: grid; place-items: center; background: var(--critical-soft); color: var(--critical); }
+.attach-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 16px; border: 2px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text-3); cursor: pointer; font-size: 0.9rem; text-align: center; }
+.attach-drop:hover { border-color: var(--brand); color: var(--text); }
+.attach-preview { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.attach-preview img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 6px; align-self: center; }

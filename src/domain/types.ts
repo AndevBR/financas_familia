@@ -165,6 +165,20 @@ export interface Budget {
   amount: Cents;
 }
 
+/** Comprovante (foto ou PDF) vinculado a um lançamento ou a um pagamento de fatura. */
+export interface Attachment {
+  id: ID;
+  transactionId?: ID;
+  paymentId?: ID;
+  invoicePaymentId?: ID;
+  name: string;
+  type: string;
+  size: number;
+  /** Conteúdo do arquivo (ArrayBuffer é aceito em qualquer navegador e no backup). */
+  data: ArrayBuffer;
+  createdAt: string;
+}
+
 export interface Settings {
   id: 'app';
   theme: 'claro' | 'escuro' | 'sistema';

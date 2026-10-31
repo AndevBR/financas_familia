@@ -3,11 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
 import { ensureSeed, syncRecurrences } from './services/finance';
 import { db } from './db/database';
+import { pruneOrphanAttachments } from './services/attachments';
 import './ui/styles.css';
 
 async function boot() {
   await ensureSeed();
   await syncRecurrences();
+  await pruneOrphanAttachments().catch(() => undefined);
   // pede ao navegador para não apagar os dados em caso de pouco espaço
   navigator.storage?.persist?.().catch(() => undefined);
   createRoot(document.getElementById('root')!).render(

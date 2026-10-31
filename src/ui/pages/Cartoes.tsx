@@ -8,6 +8,8 @@ import type { Card } from '../../domain/types';
 import { deleteCard, deleteInvoicePayment, payInvoice, saveCard } from '../../services/finance';
 import { useApp } from '../AppContext';
 import { TxTable } from '../components/TxTable';
+import { AttachmentButton, AttachmentPicker } from '../components/Attachments';
+import { addAttachment } from '../../services/attachments';
 import { Badge, EmptyState, Field, Modal, MoneyInput, Progress } from '../components/ui';
 import type { FinanceData, Lookups } from '../hooks/useFinance';
 
@@ -97,10 +99,12 @@ function PayInvoiceModal({ data, card, invoice, onClose }: { data: FinanceData; 
   const [date, setDate] = useState(today());
   const [accountId, setAccountId] = useState(card.defaultAccountId ?? data.accounts.find((a) => !a.archived)?.id ?? '');
   const [error, setError] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const save = async () => {
     try {
       if (!amount || amount <= 0) throw new Error('Informe um valor maior que zero.');
-      await payInvoice({ cardId: card.id, invoiceMonth: invoice.month, amount, date, accountId: accountId || undefined });
+      const payment = await payInvoice({ cardId: card.id, invoiceMonth: invoice.month, amount, date, accountId: accountId || undefined });
+      if (file) await addAttachment(file, { invoicePaymentId: payment.id });
       toast(amount < invoice.open ? 'Pagamento parcial da fatura registrado' : 'Fatura paga');
       onClose();
     } catch (e) {
@@ -145,6 +149,9 @@ function PayInvoiceModal({ data, card, invoice, onClose }: { data: FinanceData; 
                 ))}
             </select>
           </Field>
+          <div className="full">
+            <AttachmentPicker file={file} onChange={setFile} />
+          </div>
         </div>
         {error && <div className="alert critical">{error}</div>}
       </div>
@@ -155,7 +162,7 @@ function PayInvoiceModal({ data, card, invoice, onClose }: { data: FinanceData; 
 const invoiceTone = (s: Invoice['status']) => (s === 'paga' ? 'good' : s === 'vencida' ? 'critical' : s === 'parcial' || s === 'fechada' ? 'warning' : 'info');
 
 export function Cartoes({ data, lookups }: { data: FinanceData; lookups: Lookups }) {
-  const { openEntry, confirm, toast } = useApp();
+  const { openEntry, openAttachments, confirm, toast } = useApp();
   const [params, setParams] = useSearchParams();
   const cards = data.cards.filter((c) => !c.archived);
   const selectedId = params.get('card') ?? cards[0]?.id;
@@ -320,6 +327,10 @@ export function Cartoes({ data, lookups }: { data: FinanceData; lookups: Lookups
                     <span>{p.accountId ? lookups.account.get(p.accountId)?.name : ''}</span>
                     <span className="spacer" />
                     <b className="num">{formatBRL(p.amount)}</b>
+                    <AttachmentButton
+                      count={data.attachments.filter((a) => a.invoicePaymentId === p.id).length}
+                      onClick={() => openAttachments({ link: { invoicePaymentId: p.id }, title: `Fatura ${card.name} · ${formatMonth(p.invoiceMonth)}`, subtitle: `Pago em ${formatDateBR(p.date)} · ${formatBRL(p.amount)}` })}
+                    />
                     <button
                       className="btn ghost sm icon danger"
                       aria-label="Excluir pagamento"

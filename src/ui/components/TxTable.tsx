@@ -7,6 +7,7 @@ import { deleteTransaction, reopenTransaction, settleTransaction } from '../../s
 import { useApp } from '../AppContext';
 import type { FinanceData, Lookups } from '../hooks/useFinance';
 import { Badge, EmptyState, Money } from './ui';
+import { AttachmentButton } from './Attachments';
 
 export function StatusBadge({ t }: { t: Transaction }) {
   const label = statusLabel(t);
@@ -34,7 +35,9 @@ export function TxTable({
   showOpen?: boolean;
   compact?: boolean;
 }) {
-  const { openEdit, openPayment, confirm, toast } = useApp();
+  const { openEdit, openPayment, openAttachments, confirm, toast } = useApp();
+  const attachCount = new Map<string, number>();
+  data.attachments.forEach((a) => a.transactionId && attachCount.set(a.transactionId, (attachCount.get(a.transactionId) ?? 0) + 1));
   if (!txs.length) return <EmptyState title={emptyText} />;
 
   const remove = async (t: Transaction) => {
@@ -162,6 +165,12 @@ export function TxTable({
                     <button className="btn ghost sm icon" onClick={() => reopenTransaction(t.id).then(() => toast('Reaberto'))} title="Desfazer baixa" aria-label="Desfazer baixa">
                       <RotateCcw size={15} />
                     </button>
+                  )}
+                  {(!isCardTx(t) || attachCount.get(t.id)) && (
+                    <AttachmentButton
+                      count={attachCount.get(t.id) ?? 0}
+                      onClick={() => openAttachments({ link: { transactionId: t.id }, title: t.description, subtitle: `${formatDateBR(t.date)} · ${formatBRL(t.amount)}` })}
+                    />
                   )}
                   <button className="btn ghost sm icon" onClick={() => openEdit(t)} title="Editar" aria-label="Editar">
                     <Pencil size={15} />

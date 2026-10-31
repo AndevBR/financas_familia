@@ -1,7 +1,22 @@
 import { db as defaultDb, TABLES, type FinanceDB, type TableName } from '../db/database';
 
 export const BACKUP_FORMAT = 'financas-familia-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
+
+// Arquivos (ArrayBuffer) não cabem em JSON: no backup viram texto base64.
+function toBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+function fromBase64(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -14,6 +29,7 @@ export async function exportBackup(db: FinanceDB = defaultDb): Promise<BackupFil
   const data = {} as Record<TableName, unknown[]>;
   await db.transaction('r', TABLES.map((t) => db.table(t)), async () => {
     for (const t of TABLES) data[t] = await db.table(t).toArray();
+    data.attachments = (data.attachments as { data: ArrayBuffer }[]).map((a) => ({ ...a, data: toBase64(a.data) }));
   });
   return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), data };
 }
@@ -40,7 +56,8 @@ export async function restoreBackup(raw: unknown, db: FinanceDB = defaultDb): Pr
   await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
     for (const t of TABLES) {
       await db.table(t).clear();
-      const rows = (backup.data[t] ?? []) as object[];
+      let rows = (backup.data[t] ?? []) as object[];
+      if (t === 'attachments') rows = (rows as { data: string }[]).map((a) => ({ ...a, data: fromBase64(a.data) }));
       if (rows.length) await db.table(t).bulkAdd(rows);
       counts[t] = rows.length;
     }

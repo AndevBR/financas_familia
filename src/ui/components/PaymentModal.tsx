@@ -7,6 +7,8 @@ import { registerPayment } from '../../services/finance';
 import { useApp } from '../AppContext';
 import type { FinanceData } from '../hooks/useFinance';
 import { Field, Modal, MoneyInput } from './ui';
+import { AttachmentPicker } from './Attachments';
+import { addAttachment } from '../../services/attachments';
 
 /** Dar baixa total ou parcial em uma conta a pagar / receber. */
 export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: FinanceData; onClose: () => void }) {
@@ -16,17 +18,23 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
   const [date, setDate] = useState(today());
   const [accountId, setAccountId] = useState(tx.accountId ?? data.accounts.find((a) => !a.archived)?.id ?? '');
   const [error, setError] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
   const isIncome = tx.type === 'receita';
 
   const save = async () => {
     try {
       if (!amount || amount <= 0) throw new Error('Informe um valor maior que zero.');
       if (amount > open) throw new Error(`O valor não pode ser maior que o saldo em aberto (${formatBRL(open)}).`);
-      await registerPayment(tx.id, amount, date, accountId || undefined);
+      setSaving(true);
+      const paymentId = await registerPayment(tx.id, amount, date, accountId || undefined);
+      if (file) await addAttachment(file, { transactionId: tx.id, paymentId });
       toast(amount < open ? 'Pagamento parcial registrado' : isIncome ? 'Recebimento registrado' : 'Pagamento registrado');
       onClose();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -39,7 +47,7 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
           <button className="btn" onClick={onClose}>
             Cancelar
           </button>
-          <button className="btn primary" onClick={save}>
+          <button className="btn primary" onClick={save} disabled={saving}>
             Confirmar
           </button>
         </>
@@ -72,6 +80,9 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
                 ))}
             </select>
           </Field>
+          <div className="full">
+            <AttachmentPicker file={file} onChange={setFile} />
+          </div>
         </div>
         {error && <div className="alert critical">{error}</div>}
       </div>
