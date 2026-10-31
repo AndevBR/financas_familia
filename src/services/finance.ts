@@ -104,10 +104,11 @@ export async function updateTransaction(id: ID, edit: TxEdit, db: FinanceDB = de
     };
   } else {
     next = { ...next, cardId: undefined, invoiceMonth: undefined, accountId: edit.accountId || undefined };
-    if (edit.paid === true && next.payments.length === 0)
-      next.payments = [{ id: newId(), date: edit.date, amount: edit.amount, accountId: next.accountId }];
-    if (edit.paid === false) next.payments = [];
     if (t.cardId && edit.paid === undefined) next.payments = [];
+    if (edit.paid === false) next.payments = [];
+    if (edit.paid === true) next = settle(next, newId, next.payments.length ? today() : edit.date, next.accountId);
+    // conta alterada em lançamento pago à vista: acompanha a baixa
+    if (next.payments.length === 1 && next.payments[0].amount === next.amount) next.payments = [{ ...next.payments[0], accountId: next.accountId }];
   }
   const merchants = await db.merchants.toArray();
   const merchant = rememberMerchant(merchants, next, newId);
