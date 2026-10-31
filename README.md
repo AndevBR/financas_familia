@@ -1,66 +1,77 @@
-# Finanças da Família
+# Finanças da Família 💰
 
-Gerenciador financeiro familiar simples e rápido, que roda no navegador e guarda os dados localmente (IndexedDB). Interface em português, moeda em Real e datas no padrão brasileiro.
+Projeto que fiz pra controlar as finanças aqui de casa. A ideia é ser simples: lançar uma despesa em poucos segundos e depois conseguir ver pra onde o dinheiro está indo, quanto vai sobrar no fim do mês e onde dá pra economizar.
 
-## Como usar
+Roda direto no navegador e os dados ficam salvos no próprio navegador (IndexedDB), então não precisa de servidor nem de cadastro.
+
+👉 **Acesse aqui:** https://andevbr.github.io/financas_familia/
+
+## O que dá pra fazer
+
+- **Lançar despesas e receitas rápido** — aperta a tecla **N**, digita o valor e dá Enter. O resto é opcional.
+- **Estabelecimentos lembrados** — quando digito "iFood", ele já preenche a última categoria e forma de pagamento que usei.
+- **Categorias e subcategorias** — tipo *Aplicativos › Farmácia* com estabelecimento *iFood*. Assim consigo ver tanto quanto gastei no iFood quanto quanto gastei com farmácia. Dá pra criar, editar e excluir.
+- **Contas a pagar e a receber** — vencidas, em aberto, pagas, pagamento parcial.
+- **Cartões de crédito** — faturas, parcelamentos e limite usado. O pagamento da fatura não duplica as despesas (a compra já conta na categoria).
+- **Contas recorrentes** — internet, luz, escola, assinaturas... mensal, semanal ou anual. Dá pra pausar ou cancelar.
+- **Dashboard** — quanto entrou, quanto saiu, quanto falta pagar e quanto deve sobrar no fim do mês, com gráficos.
+- **Relatórios** — filtros por período, categoria, estabelecimento, pessoa, cartão e status. Exporta pra Excel, CSV e PDF.
+- **Orçamento** — limite por categoria com aviso quando chega em 80% e 100%.
+- **Oportunidades de economia** — mostra as categorias em que gastei mais que a média e simula quanto daria pra economizar.
+- **Contas e saldos** — banco, dinheiro e carteira digital, com transferências entre elas.
+- **Backup** — exporta e importa tudo em JSON.
+- Tema claro/escuro e funciona no celular.
+
+## Rodando no computador
+
+Precisa ter o [Node.js](https://nodejs.org) instalado.
 
 ```bash
 npm install
-npm run dev        # abre em http://localhost:5173
+npm run dev
 ```
 
-Para gerar a versão de produção (arquivos estáticos em `dist/`, que podem ser hospedados de graça no GitHub Pages, Netlify, Vercel etc.):
+Depois é só abrir http://localhost:5173
+
+Outros comandos:
 
 ```bash
-npm run build
-npm run preview
+npm test          # roda os testes
+npm run build     # gera a versão final na pasta dist
 ```
 
-**Atalho:** pressione **N** em qualquer tela para lançar uma despesa/receita. Só o valor é obrigatório; Enter salva.
+## Tecnologias
 
-## Funcionalidades
+- React + TypeScript (com Vite)
+- Dexie pra salvar os dados no IndexedDB
+- Recharts pros gráficos
+- Vitest pros testes
+- SheetJS (Excel) e jsPDF (PDF) pras exportações
 
-| Área | O que faz |
-|---|---|
-| Lançamento rápido | Valor + Enter. Estabelecimento com autocompletar que lembra categoria, subcategoria, forma de pagamento e conta. Atalhos das últimas classificações usadas. Descrição automática. |
-| Categorias | Categoria → Subcategoria, com estabelecimento independente (ex.: Aplicativos › Farmácia · iFood). Tudo editável; excluir uma categoria não apaga os lançamentos. |
-| Contas a pagar / receber | Em aberto, vencidas, pagas; baixa total, parcial ou rápida; desfazer baixa. |
-| Cartões | Limite, fechamento e vencimento; faturas por mês; compras parceladas; pagamento (inclusive parcial) da fatura **sem duplicar despesas**. |
-| Recorrentes | Mensal, semanal ou anual; valor fixo ou variável; débito automático; pausar, reativar, cancelar. Detecta gastos que se repetem e sugere torná-los recorrentes. |
-| Dashboard | Recebido, gasto, pago, a pagar, disponível, previsão de sobra no fim do mês, categoria que mais consome, comparação com o mês anterior e gráficos. |
-| Relatórios | Filtros por período, categoria, subcategoria, estabelecimento, pessoa, cartão e status. Rankings, comparação entre meses, crescimento, recorrentes, evolução das economias. Exporta Excel, CSV e PDF. |
-| Orçamento | Limite mensal por categoria com alertas em 80% e 100%. |
-| Oportunidades de economia | Categorias acima da média dos últimos 3 meses e gastos não essenciais, com simulador de redução (economia mensal e anual). |
-| Contas e saldos | Bancos, dinheiro e carteiras digitais com saldo inicial, extrato e transferências (que não contam como receita/despesa). |
-| Backup | Backup completo em JSON, restauração com confirmação, opção de apagar tudo. |
-
-## Regras financeiras importantes
-
-- **Valores em centavos (inteiros)** — sem erros de arredondamento; parcelas somam exatamente o total (a diferença fica na 1ª parcela).
-- **Cartão:** cada compra entra na categoria pela data da compra. Compras a partir do dia de fechamento vão para a fatura seguinte; a fatura é nomeada pelo mês de vencimento. O pagamento da fatura só retira dinheiro da conta.
-- **"Gastamos"** = despesas por competência (inclui compras no cartão). **"Já pago" / "Falta pagar"** = contas com vencimento no mês + faturas que vencem no mês.
-- **"Deve sobrar"** = saldo disponível hoje + a receber − a pagar (incluindo atrasados de meses anteriores).
-- Saldos das contas consideram apenas o que foi efetivamente pago/recebido até hoje.
-
-## Arquitetura
+## Organização das pastas
 
 ```
 src/
-  domain/     regras de negócio puras (sem React, sem banco) — 100% testadas
-    money, dates, transactions, cards, recurrence, accounts, reports, suggestions, defaults
-  db/         esquema IndexedDB (Dexie)
-  services/   operações de gravação, backup/restauração e exportação
-  ui/         React: componentes reutilizáveis, páginas, hooks e tema
-e2e/          teste de ponta a ponta no navegador (Playwright)
+  domain/    cálculos e regras (cartão, parcelas, recorrências, relatórios...)
+  db/        banco de dados local
+  services/  salvar, excluir, backup e exportação
+  ui/        telas e componentes
+e2e/         teste que abre o navegador e testa as telas
 ```
 
-Tecnologias: React 18, TypeScript, Vite, Dexie (IndexedDB), Recharts, Vitest, SheetJS (Excel) e jsPDF (PDF).
+Separei os cálculos das telas pra ficar mais fácil de testar. Os testes cobrem principalmente a parte de valores, cartões, parcelas, filtros e lançamentos.
 
-**Sincronização futura:** todos os registros usam UUID gerado no cliente, e toda gravação passa por `src/services`. Isso permite plugar um serviço de sincronização (ex.: Dexie Cloud ou Supabase) sem mudar a interface.
+## Algumas regras que usei
 
-## Testes
+- Os valores são guardados em centavos pra não dar erro de arredondamento.
+- No cartão, compra feita a partir do dia de fechamento cai na fatura do mês seguinte.
+- "Deve sobrar no fim do mês" = saldo das contas hoje + o que falta receber − o que falta pagar.
+- Transferência entre contas minhas não conta como receita nem despesa.
 
-```bash
-npm test           # testes unitários e de integração (Vitest + IndexedDB simulado)
-npm run build && (npx vite preview --port 4173 &) && npm run e2e   # ponta a ponta no navegador
-```
+## Ideias pro futuro
+
+- Sincronizar entre celular e computador
+- Orçamento diferente por mês
+- Importar extrato do banco
+
+⚠️ Como os dados ficam no navegador, faça backup de vez em quando (menu *Configurações e backup*).
