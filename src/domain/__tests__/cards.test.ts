@@ -1,4 +1,4 @@
-import { buildInvoice, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
+import { buildInvoice, invoiceChoices, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
 import { buildTransactions } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
@@ -69,5 +69,43 @@ describe('cartões de crédito', () => {
     expect(plan.remainingAmount).toBe(40000);
     expect(plan.nextInvoice).toBe('2026-10');
     expect(plan.lastInvoice).toBe('2027-01');
+  });
+
+  // caso real: cartão fecha dia 27 e vence dia 3; saldo da fatura de novembro lançado em 03/11
+  const nubank = card({ id: 'nu', closingDay: 27, dueDay: 3 });
+
+  it('permite escolher a fatura manualmente', () => {
+    expect(invoiceMonthFor('2026-11-03', nubank)).toBe('2026-12');
+    const [t] = buildTransactions(
+      { type: 'despesa', amount: 120050, date: '2026-11-03', paymentMethod: 'credito', cardId: 'nu', paid: true, invoiceMonth: '2026-11' },
+      newId,
+      { description: 'Fatura - Outubro', card: nubank },
+    );
+    expect(t.invoiceMonth).toBe('2026-11');
+    const inv = buildInvoice(nubank, '2026-11', [t], [], '2026-11-01');
+    expect(inv).toMatchObject({ total: 120050, dueDate: '2026-11-03', status: 'fechada' });
+    expect(buildInvoice(nubank, '2026-11', [t], [], '2026-11-04').status).toBe('vencida');
+  });
+
+  it('parcelas seguem a partir da fatura escolhida', () => {
+    const list = buildTransactions(
+      { type: 'despesa', amount: 30000, date: '2026-11-03', paymentMethod: 'credito', cardId: 'nu', paid: true, installments: 3, invoiceMonth: '2026-11' },
+      newId,
+      { description: 'TV', card: nubank },
+    );
+    expect(list.map((t) => t.invoiceMonth)).toEqual(['2026-11', '2026-12', '2027-01']);
+  });
+
+  it('lista faturas possíveis com a automática marcada', () => {
+    const choices = invoiceChoices(nubank, '2026-11-03');
+    expect(choices.map((c) => c.month)).toEqual(['2026-10', '2026-11', '2026-12', '2027-01', '2027-02']);
+    expect(choices.find((c) => c.automatic)?.month).toBe('2026-12');
+    expect(choices.find((c) => c.month === '2026-11')?.dueDate).toBe('2026-11-03');
+    expect(invoiceChoices(nubank, '2026-11-03', '2026-06').map((c) => c.month)).toContain('2026-06');
+  });
+
+  it('fatura sem compras não aparece como paga', () => {
+    expect(buildInvoice(nubank, '2026-11', [], [], '2026-10-31').status).toBe('vazia');
+    expect(buildInvoice(nubank, '2026-12', [], [], '2026-10-31').status).toBe('aberta');
   });
 });

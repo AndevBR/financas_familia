@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { invoiceMonthFor } from '../../domain/cards';
-import { addDays, formatMonth, today } from '../../domain/dates';
+import { invoiceChoices, invoiceMonthFor } from '../../domain/cards';
+import { addDays, formatDateBR, formatMonth, today } from '../../domain/dates';
 import { formatBRL, splitAmount } from '../../domain/money';
 import { findMerchant, recentCombos, searchMerchants } from '../../domain/suggestions';
 import { txStatus, validateEntry, type QuickEntryInput } from '../../domain/transactions';
@@ -83,6 +83,7 @@ function initialState(data: FinanceData, prefill?: Partial<QuickEntryInput>, edi
       paymentMethod: editing.paymentMethod,
       accountId: editing.accountId ?? editing.payments[0]?.accountId,
       cardId: editing.cardId,
+      invoiceMonth: editing.invoiceMonth,
       personId: editing.personId,
       paid: txStatus(editing) === 'pago',
       notes: editing.notes ?? '',
@@ -169,6 +170,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
           paymentMethod: f.paymentMethod,
           accountId: f.accountId,
           cardId: isCredit ? f.cardId : undefined,
+          invoiceMonth: isCredit ? f.invoiceMonth : undefined,
           personId: f.personId,
           notes: f.notes,
           // só altera as baixas se o usuário mudou o status (preserva pagamentos parciais)
@@ -219,7 +221,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
 
   const installmentPreview =
     isCredit && card && f.amount > 0 && (f.installments ?? 1) >= 1
-      ? `${(f.installments ?? 1) > 1 ? `${f.installments}x de ${formatBRL(splitAmount(f.amount, f.installments!)[1] ?? f.amount)} · ` : ''}1ª parcela na fatura de ${formatMonth(invoiceMonthFor(f.date, card))}`
+      ? `${(f.installments ?? 1) > 1 ? `${f.installments}x de ${formatBRL(splitAmount(f.amount, f.installments!)[1] ?? f.amount)} · ` : ''}1ª parcela na fatura de ${formatMonth(f.invoiceMonth || invoiceMonthFor(f.date, card))}`
       : undefined;
 
   const paidLabel = f.type === 'receita' ? ['Recebido', 'A receber'] : ['Pago', 'Em aberto'];
@@ -389,7 +391,19 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
               </select>
             </Field>
           )}
-          {isCredit && editing && installmentPreview && <div className="hint full">{installmentPreview.split(' · ').pop()}</div>}
+          {isCredit && card && (
+            <Field label="Fatura" className="full" hint="Escolhida automaticamente pela data e pelo fechamento do cartão. Mude se a compra entrou em outra fatura.">
+              <select className="input" value={f.invoiceMonth ?? ''} onChange={(e) => set({ invoiceMonth: e.target.value || undefined })} aria-label="Fatura">
+                {!editing && <option value="">Automática — {formatMonth(invoiceMonthFor(f.date, card))} (vence {formatDateBR(invoiceChoices(card, f.date).find((c) => c.automatic)!.dueDate)})</option>}
+                {invoiceChoices(card, f.date, f.invoiceMonth).map((c) => (
+                  <option key={c.month} value={c.month}>
+                    Fatura de {formatMonth(c.month)} — vence {formatDateBR(c.dueDate)}
+                    {c.automatic ? ' (pela data)' : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
         </div>
 
         <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setMore((m) => !m)}>

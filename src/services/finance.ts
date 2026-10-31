@@ -71,6 +71,8 @@ export interface TxEdit {
   personId?: ID;
   notes?: string;
   paid?: boolean;
+  /** Fatura escolhida manualmente (compras no cartão). */
+  invoiceMonth?: string;
 }
 
 /** Edita um lançamento existente (uma parcela por vez no caso de parcelados). */
@@ -100,7 +102,7 @@ export async function updateTransaction(id: ID, edit: TxEdit, db: FinanceDB = de
       cardId: card.id,
       accountId: undefined,
       payments: [],
-      invoiceMonth: t.cardId === card.id && t.installment ? t.invoiceMonth : invoiceMonthFor(edit.date, card),
+      invoiceMonth: edit.invoiceMonth || (t.cardId === card.id && t.installment ? t.invoiceMonth : invoiceMonthFor(edit.date, card)),
     };
   } else {
     next = { ...next, cardId: undefined, invoiceMonth: undefined, accountId: edit.accountId || undefined };

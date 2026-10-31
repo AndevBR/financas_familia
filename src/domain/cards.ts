@@ -27,7 +27,7 @@ export function invoiceClosingDate(invoice: MonthKey, card: Pick<Card, 'closingD
   return makeDate(y, m, card.closingDay);
 }
 
-export type InvoiceStatus = 'aberta' | 'fechada' | 'paga' | 'parcial' | 'vencida';
+export type InvoiceStatus = 'aberta' | 'fechada' | 'paga' | 'parcial' | 'vencida' | 'vazia';
 
 export interface Invoice {
   cardId: string;
@@ -47,6 +47,7 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   paga: 'Paga',
   parcial: 'Paga parcialmente',
   vencida: 'Vencida',
+  vazia: 'Sem compras',
 };
 
 export function buildInvoice(
@@ -66,7 +67,8 @@ export function buildInvoice(
   const dueDate = invoiceDueDate(month, card);
   let status: InvoiceStatus;
   if (total > 0 && open === 0) status = 'paga';
-  else if (total === 0) status = ref < closingDate ? 'aberta' : 'paga';
+  // fatura sem nenhuma compra lançada não é "paga": só não tem nada registrado
+  else if (total === 0) status = ref < closingDate ? 'aberta' : 'vazia';
   else if (ref > dueDate) status = 'vencida';
   else if (paid > 0) status = 'parcial';
   else if (ref >= closingDate) status = 'fechada';
@@ -150,4 +152,22 @@ export function installmentPlans(transactions: Transaction[], ref: ISODate = tod
       lastInvoice: items[items.length - 1].invoiceMonth,
     };
   });
+}
+
+export interface InvoiceChoice {
+  month: MonthKey;
+  dueDate: ISODate;
+  automatic: boolean;
+}
+
+/**
+ * Faturas que podem receber uma compra: a calculada pela data e as vizinhas.
+ * Útil para lançar o saldo de uma fatura que já existia ou corrigir uma compra
+ * que o banco colocou em outra fatura.
+ */
+export function invoiceChoices(card: Pick<Card, 'closingDay' | 'dueDay'>, purchaseDate: ISODate, include?: MonthKey): InvoiceChoice[] {
+  const auto = invoiceMonthFor(purchaseDate, card);
+  const months = new Set([-2, -1, 0, 1, 2].map((i) => addMonthKey(auto, i)));
+  if (include) months.add(include);
+  return [...months].sort().map((month) => ({ month, dueDate: invoiceDueDate(month, card), automatic: month === auto }));
 }

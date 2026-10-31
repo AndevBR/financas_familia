@@ -97,6 +97,18 @@ describe('serviços com IndexedDB', () => {
     expect(await db.transactions.count()).toBe(0);
   });
 
+  it('edição permite mover a compra para outra fatura', async () => {
+    await saveCard({ name: 'Nubank', limit: 0, closingDay: 27, dueDay: 3, color: '#000' }, db);
+    const card = (await db.cards.toArray())[0];
+    const [t] = await saveQuickEntry({ type: 'despesa', amount: 120050, date: '2026-11-03', paymentMethod: 'credito', cardId: card.id, paid: true }, db);
+    expect(t.invoiceMonth).toBe('2026-12');
+    await updateTransaction(t.id, { description: t.description, amount: t.amount, date: t.date, paymentMethod: 'credito', cardId: card.id, invoiceMonth: '2026-11' }, db);
+    expect((await db.transactions.get(t.id))!.invoiceMonth).toBe('2026-11');
+    // sem escolha explícita, mantém a fatura atual ao editar outros campos
+    await updateTransaction(t.id, { description: 'Saldo fatura outubro', amount: t.amount, date: t.date, paymentMethod: 'credito', cardId: card.id, invoiceMonth: '2026-11' }, db);
+    expect((await db.transactions.get(t.id))!.invoiceMonth).toBe('2026-11');
+  });
+
   it('transferências validam contas', async () => {
     const [a, b] = await db.accounts.toArray();
     await expect(saveTransfer({ fromAccountId: a.id, toAccountId: a.id, amount: 100, date: '2026-10-01' }, db)).rejects.toThrow();

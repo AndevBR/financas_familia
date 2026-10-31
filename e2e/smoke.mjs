@@ -136,6 +136,19 @@ await modal().getByLabel('Categoria', { exact: true }).selectOption({ label: 'Ca
 await modal().getByLabel('Parcelas').selectOption('3');
 await page.keyboard.press('Enter');
 await saved('Compra lançada em 3 parcelas');
+// compra lançada numa fatura escolhida manualmente (ex.: saldo de fatura anterior)
+await page.getByRole('button', { name: 'Nova compra' }).click();
+await modal().getByLabel('Valor', { exact: true }).pressSequentially('1200,50');
+await modal().getByLabel('Descrição').fill('Saldo fatura anterior');
+const faturaSel = modal().getByLabel('Fatura', { exact: true });
+const escolhida = await faturaSel.locator('option').nth(2).getAttribute('value'); // uma fatura antes da automática
+await faturaSel.selectOption(escolhida);
+await page.keyboard.press('Enter');
+await saved('Despesa lançada');
+const salva = await page.evaluate(() => window.financeDb.transactions.filter((t) => t.amount === 120050).first());
+if (salva.invoiceMonth !== escolhida) throw new Error(`Fatura escolhida não respeitada: ${salva.invoiceMonth} != ${escolhida}`);
+step('compra em fatura escolhida manualmente');
+
 // pagamento parcial da fatura com comprovante
 await page.getByRole('button', { name: 'Pagar fatura' }).click();
 await modal().locator('input.money').fill('50');

@@ -1,6 +1,6 @@
 import { addMonths, diffDays, today } from './dates';
 import { splitAmount, sum } from './money';
-import type { Card, Cents, ID, ISODate, Payment, PaymentMethod, Transaction, TxStatus, TxType } from './types';
+import type { Card, Cents, ID, ISODate, MonthKey, Payment, PaymentMethod, Transaction, TxStatus, TxType } from './types';
 import { invoiceMonthFor } from './cards';
 
 export type IdFactory = () => ID;
@@ -65,6 +65,8 @@ export interface QuickEntryInput {
   paid: boolean;
   notes?: string;
   installments?: number;
+  /** Fatura da 1ª parcela escolhida manualmente; vazio = calculada pela data. */
+  invoiceMonth?: MonthKey;
   recurrenceId?: ID;
   estimated?: boolean;
 }
@@ -126,7 +128,7 @@ export function buildTransactions(
     const n = input.installments ?? 1;
     const parts = splitAmount(input.amount, n);
     const groupId = n > 1 ? newId() : undefined;
-    const firstInvoice = invoiceMonthFor(input.date, card);
+    const firstInvoice = input.invoiceMonth || invoiceMonthFor(input.date, card);
     const day = Number(input.date.slice(8, 10));
     return parts.map((amount, i) => ({
       ...base,
