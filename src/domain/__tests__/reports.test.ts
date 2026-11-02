@@ -1,4 +1,4 @@
-import { budgetLevel, budgetStatus, byCategory, byMerchant, bySubcategory, compareCategories, detectRecurring, filterTransactions, monthSummary, monthlyEvolution, savingOpportunities, simulateSavings, topExpenses } from '../reports';
+import { ANY_CARD, budgetLevel, budgetStatus, byCategory, byMerchant, bySubcategory, compareCategories, detectRecurring, filterTransactions, monthSummary, monthlyEvolution, savingOpportunities, simulateSavings, topExpenses } from '../reports';
 import type { DataSet } from '../reports';
 import type { Category, Subcategory } from '../types';
 import { card, paidTx, tx } from '../../test/helpers';
@@ -35,6 +35,7 @@ describe('filtros', () => {
     expect(filterTransactions(list, { personId: 'p1' }, cards)).toHaveLength(1);
     expect(filterTransactions(list, { personId: 'p2' }, cards)).toHaveLength(1);
     expect(filterTransactions(list, { cardId: 'c1' })).toHaveLength(1);
+    expect(filterTransactions(list, { cardId: ANY_CARD })).toHaveLength(1);
     expect(filterTransactions(list, { status: 'aberto' })).toHaveLength(1);
     expect(filterTransactions(list, { status: 'vencido' }, [], '2026-10-10')).toHaveLength(1);
     expect(filterTransactions(list, { search: 'LUZ' })).toHaveLength(1);

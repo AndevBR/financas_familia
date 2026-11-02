@@ -156,7 +156,7 @@ export function BarList({ groups, limit = 8, emptyText = 'Nada para mostrar', on
           key={g.key}
           className="bar-item"
           title={`${g.label}: ${formatBRL(g.total)} (${formatPercent(g.percent, 1)}) em ${g.count} lançamento(s)`}
-          style={{ ['--bar-color' as string]: color(g.color ?? '#2a78d6'), cursor: onSelect ? 'pointer' : undefined }}
+          style={{ ['--bar-color' as string]: g.key === '__none__' ? '#a3a29b' : color(g.color ?? '#2a78d6'), cursor: onSelect ? 'pointer' : undefined }}
           onClick={() => onSelect?.(g)}
         >
           <span className="ellipsis">

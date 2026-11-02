@@ -1,4 +1,4 @@
-import { buildInvoice, invoiceChoices, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
+import { buildInvoice, cardPurchases, invoiceChoices, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
 import { buildTransactions } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
@@ -107,5 +107,17 @@ describe('cartões de crédito', () => {
   it('fatura sem compras não aparece como paga', () => {
     expect(buildInvoice(nubank, '2026-11', [], [], '2026-10-31').status).toBe('vazia');
     expect(buildInvoice(nubank, '2026-12', [], [], '2026-10-31').status).toBe('aberta');
+  });
+
+  it('separa as compras do cartão por fatura e por cartão', () => {
+    const list = [
+      tx({ cardId: 'a', invoiceMonth: '2026-10', categoryId: 'app', amount: 100 }),
+      tx({ cardId: 'a', invoiceMonth: '2026-11', categoryId: 'app', amount: 200 }),
+      tx({ cardId: 'b', invoiceMonth: '2026-11', categoryId: 'casa', amount: 300 }),
+      tx({ invoiceMonth: undefined, categoryId: 'casa', amount: 999 }), // pix, não é cartão
+    ];
+    expect(cardPurchases(list, { cardId: 'a', fromInvoice: '2026-11', toInvoice: '2026-11' }).map((t) => t.amount)).toEqual([200]);
+    expect(cardPurchases(list, { fromInvoice: '2026-11', toInvoice: '2026-11' }).map((t) => t.amount)).toEqual([200, 300]);
+    expect(cardPurchases(list, { fromInvoice: '2026-09', toInvoice: '2026-12' })).toHaveLength(3);
   });
 });

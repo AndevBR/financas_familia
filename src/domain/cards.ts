@@ -171,3 +171,19 @@ export function invoiceChoices(card: Pick<Card, 'closingDay' | 'dueDay'>, purcha
   if (include) months.add(include);
   return [...months].sort().map((month) => ({ month, dueDate: invoiceDueDate(month, card), automatic: month === auto }));
 }
+
+/**
+ * Compras no cartão por fatura (mês de vencimento), de um cartão ou de todos.
+ * Base para ver "onde está o gasto do cartão" por categoria/estabelecimento.
+ */
+export function cardPurchases(transactions: Transaction[], opts: { cardId?: string; fromInvoice: MonthKey; toInvoice: MonthKey }): Transaction[] {
+  return transactions.filter(
+    (t) =>
+      t.type === 'despesa' &&
+      !!t.cardId &&
+      (!opts.cardId || t.cardId === opts.cardId) &&
+      !!t.invoiceMonth &&
+      t.invoiceMonth >= opts.fromInvoice &&
+      t.invoiceMonth <= opts.toInvoice,
+  );
+}

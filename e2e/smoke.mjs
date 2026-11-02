@@ -102,6 +102,23 @@ await page.locator('tr', { hasText: 'Conta de luz' }).getByText('Parcial').waitF
 await page.locator('tr', { hasText: 'Conta de luz' }).getByLabel('Ver comprovantes (1)').waitFor();
 step('conta a pagar + pagamento parcial com comprovante');
 
+// filtros de contas a pagar
+await page.getByLabel('Buscar').fill('luz');
+await page.locator('tr', { hasText: 'Conta de luz' }).waitFor();
+await page.getByLabel('Buscar').fill('nada-encontrado');
+await expectText('Nenhuma conta em aberto');
+await page.getByRole('button', { name: 'Limpar filtros' }).click();
+await page.getByLabel('Categoria', { exact: true }).selectOption({ label: 'Casa' });
+await page.getByLabel('Subcategoria').selectOption({ label: 'Energia' });
+await page.locator('tr', { hasText: 'Conta de luz' }).waitFor();
+await page.getByLabel('Vencimento de').fill('2000-01-01');
+await page.getByLabel('Vencimento até').fill('2000-01-31');
+await expectText('Nenhuma conta em aberto');
+await page.getByRole('button', { name: 'Este mês' }).click();
+await page.locator('tr', { hasText: 'Conta de luz' }).waitFor();
+await page.getByRole('button', { name: 'Limpar filtros' }).click();
+step('filtros de contas a pagar (busca, categoria e período)');
+
 // comprovante anexado depois, numa conta já paga
 await page.getByRole('tab', { name: 'Pagas' }).click();
 await page.locator('tr', { hasText: 'iFood' }).first().getByLabel('Anexar comprovante').click();
@@ -148,6 +165,15 @@ await saved('Despesa lançada');
 const salva = await page.evaluate(() => window.financeDb.transactions.filter((t) => t.amount === 120050).first());
 if (salva.invoiceMonth !== escolhida) throw new Error(`Fatura escolhida não respeitada: ${salva.invoiceMonth} != ${escolhida}`);
 step('compra em fatura escolhida manualmente');
+await expectText('Onde está o gasto do Nubank');
+await page.getByRole('tab', { name: 'Todos os cartões' }).click();
+await page.getByRole('tab', { name: '12 faturas' }).click();
+await expectText('Onde está o gasto dos cartões');
+await page.getByRole('tab', { name: 'Estabelecimento' }).click();
+await page.getByRole('tab', { name: 'Categoria', exact: true }).click();
+await page.locator('.bar-item', { hasText: 'Casa' }).first().waitFor();
+await shot('cartao-gastos');
+step('gastos do cartão por categoria');
 
 // pagamento parcial da fatura com comprovante
 await page.getByRole('button', { name: 'Pagar fatura' }).click();

@@ -32,6 +32,9 @@ export interface DataSet {
 
 // ---------------------------------------------------------------- filtros
 
+/** Valor especial do filtro de cartão: qualquer compra feita no cartão de crédito. */
+export const ANY_CARD = '*';
+
 export interface TxFilters {
   from?: ISODate;
   to?: ISODate;
@@ -67,7 +70,7 @@ export function filterTransactions(txs: Transaction[], f: TxFilters, cards: Card
       const person = t.personId ?? (t.cardId ? holderByCard.get(t.cardId) : undefined);
       if (person !== f.personId) return false;
     }
-    if (f.cardId && t.cardId !== f.cardId) return false;
+    if (f.cardId === ANY_CARD ? !t.cardId : f.cardId && t.cardId !== f.cardId) return false;
     if (f.accountId && t.accountId !== f.accountId && !t.payments.some((p) => p.accountId === f.accountId)) return false;
     if (f.status) {
       const s = txStatus(t);

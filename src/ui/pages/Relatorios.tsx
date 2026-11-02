@@ -15,6 +15,7 @@ import {
   topExpenses,
   type GroupTotal,
   type TxFilters,
+  ANY_CARD,
 } from '../../domain/reports';
 import { exportCSV, exportPDF, exportXLSX, transactionsSheet, type Sheet } from '../../services/export';
 import { useApp } from '../AppContext';
@@ -185,7 +186,8 @@ export function Relatorios({ data, lookups }: { data: FinanceData; lookups: Look
           </Field>
           <Field label="Cartão">
             <select className="input" value={f.cardId ?? ''} onChange={(e) => set({ cardId: e.target.value || undefined })}>
-              <option value="">Todos</option>
+              <option value="">Qualquer forma de pagamento</option>
+              <option value={ANY_CARD}>Só compras no cartão (todos)</option>
               {data.cards.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

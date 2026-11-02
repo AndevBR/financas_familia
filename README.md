@@ -11,9 +11,9 @@ Roda direto no navegador e os dados ficam salvos no próprio navegador (IndexedD
 - **Lançar despesas e receitas rápido** — aperta a tecla **N**, digita o valor e dá Enter. O resto é opcional.
 - **Estabelecimentos lembrados** — quando digito "iFood", ele já preenche a última categoria e forma de pagamento que usei.
 - **Categorias e subcategorias** — tipo *Aplicativos › Farmácia* com estabelecimento *iFood*. Assim consigo ver tanto quanto gastei no iFood quanto quanto gastei com farmácia. Dá pra criar, editar e excluir.
-- **Contas a pagar e a receber** — vencidas, em aberto, pagas, pagamento parcial.
+- **Contas a pagar e a receber** — vencidas, em aberto, pagas, pagamento parcial. Dá pra pesquisar por descrição, categoria e período.
 - **Comprovantes** — dá pra anexar foto ou PDF do comprovante na hora de pagar (opcional) ou depois, nas contas que já foram pagas. Também funciona no pagamento da fatura do cartão.
-- **Cartões de crédito** — faturas, parcelamentos e limite usado. O pagamento da fatura não duplica as despesas (a compra já conta na categoria).
+- **Cartões de crédito** — faturas, parcelamentos e limite usado. O pagamento da fatura não duplica as despesas (a compra já conta na categoria). Dá pra ver onde está o gasto do cartão por categoria, subcategoria e estabelecimento, e escolher em qual fatura a compra entra.
 - **Contas recorrentes** — internet, luz, escola, assinaturas... mensal, semanal ou anual. Dá pra pausar ou cancelar.
 - **Dashboard** — quanto entrou, quanto saiu, quanto falta pagar e quanto deve sobrar no fim do mês, com gráficos.
 - **Relatórios** — filtros por período, categoria, estabelecimento, pessoa, cartão e status. Exporta pra Excel, CSV e PDF.

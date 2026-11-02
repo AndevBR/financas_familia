@@ -1,14 +1,16 @@
-import { AlertTriangle, CreditCard, Plus } from 'lucide-react';
+import { AlertTriangle, CreditCard, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listInvoices } from '../../domain/cards';
-import { addDays, currentMonth, formatDateBR, formatMonth, monthKey, today } from '../../domain/dates';
+import { addDays, addMonthKey, currentMonth, formatDateBR, formatMonth, monthEnd, monthStart, today } from '../../domain/dates';
 import { formatBRL, sum } from '../../domain/money';
 import { isCardTx, isOverdue, openAmount, txStatus } from '../../domain/transactions';
 import type { TxType } from '../../domain/types';
 import { useApp } from '../AppContext';
 import { TxTable } from '../components/TxTable';
-import { Badge, MonthPicker, StatCard, Tabs } from '../components/ui';
+import { Badge, Field, StatCard, Tabs } from '../components/ui';
+import { CategorySelects } from '../components/TxFormModal';
+import { filterTransactions, type TxFilters } from '../../domain/reports';
 import type { FinanceData, Lookups } from '../hooks/useFinance';
 
 type View = 'abertas' | 'vencidas' | 'quitadas' | 'todas';
@@ -17,20 +19,23 @@ type View = 'abertas' | 'vencidas' | 'quitadas' | 'todas';
 export function ContasPage({ type, data, lookups }: { type: TxType; data: FinanceData; lookups: Lookups }) {
   const { openEntry } = useApp();
   const [view, setView] = useState<View>('abertas');
-  const [month, setMonth] = useState(currentMonth());
-  const [allMonths, setAllMonths] = useState(true);
+  const [f, setF] = useState<TxFilters>({});
+  const set = (p: Partial<TxFilters>) => setF((c) => ({ ...c, ...p }));
+  const hasFilters = !!(f.search || f.categoryId || f.from || f.to);
   const ref = today();
   const isPay = type === 'despesa';
 
   const base = useMemo(() => data.transactions.filter((t) => t.type === type && !isCardTx(t)), [data.transactions, type]);
+  const filtered = useMemo(() => filterTransactions(base, f), [base, f]);
   const list = useMemo(() => {
-    let l = base;
-    if (!allMonths) l = l.filter((t) => monthKey(t.date) === month);
+    let l = filtered;
     if (view === 'abertas') l = l.filter((t) => txStatus(t) !== 'pago');
     if (view === 'vencidas') l = l.filter((t) => isOverdue(t, ref));
     if (view === 'quitadas') l = l.filter((t) => txStatus(t) === 'pago');
     return [...l].sort((a, b) => (view === 'quitadas' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
-  }, [base, view, month, allMonths, ref]);
+  }, [filtered, view, ref]);
+  const listOpen = sum(list.map(openAmount));
+  const listTotal = sum(list.map((t) => t.amount));
 
   const open = base.filter((t) => txStatus(t) !== 'pago');
   const overdue = open.filter((t) => isOverdue(t, ref));
@@ -80,23 +85,68 @@ export function ContasPage({ type, data, lookups }: { type: TxType; data: Financ
       )}
 
       <div className="card">
-        <div className="row between" style={{ marginBottom: 6 }}>
-          <div className="row">
-            {!allMonths && <MonthPicker value={month} onChange={setMonth} />}
-            <label className="check small">
-              <input type="checkbox" checked={allMonths} onChange={(e) => setAllMonths(e.target.checked)} /> Todos os meses
-            </label>
-          </div>
+        <div className="row between" style={{ marginBottom: 12 }}>
+          <h2>{isPay ? 'Contas' : 'Recebimentos'}</h2>
           <button className="btn primary" onClick={() => openEntry({ type, paid: false, paymentMethod: isPay ? 'boleto' : 'pix' })}>
             <Plus size={16} /> {isPay ? 'Nova conta a pagar' : 'Nova receita prevista'}
           </button>
+        </div>
+        <div className="filters" style={{ marginBottom: 12 }}>
+          <div className="field" style={{ gridColumn: 'span 2' }}>
+            <label>Buscar</label>
+            <div style={{ position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-3)' }} />
+              <input
+                className="input"
+                style={{ paddingLeft: 32 }}
+                placeholder="Descrição, estabelecimento ou observação"
+                value={f.search ?? ''}
+                onChange={(e) => set({ search: e.target.value })}
+                aria-label="Buscar"
+              />
+            </div>
+          </div>
+          <CategorySelects filter data={data} type={type} categoryId={f.categoryId} subcategoryId={f.subcategoryId} onChange={(categoryId, subcategoryId) => set({ categoryId, subcategoryId })} />
+          <Field label="Vencimento de">
+            <input className="input" type="date" value={f.from ?? ''} onChange={(e) => set({ from: e.target.value || undefined })} aria-label="Vencimento de" />
+          </Field>
+          <Field label="Até">
+            <input className="input" type="date" value={f.to ?? ''} onChange={(e) => set({ to: e.target.value || undefined })} aria-label="Vencimento até" />
+          </Field>
+        </div>
+        <div className="row between small" style={{ marginBottom: 4 }}>
+          <div className="chips">
+            {[
+              { label: 'Este mês', from: monthStart(currentMonth()), to: monthEnd(currentMonth()) },
+              { label: 'Próximo mês', from: monthStart(addMonthKey(currentMonth(), 1)), to: monthEnd(addMonthKey(currentMonth(), 1)) },
+              { label: 'Mês passado', from: monthStart(addMonthKey(currentMonth(), -1)), to: monthEnd(addMonthKey(currentMonth(), -1)) },
+            ].map((p) => (
+              <button key={p.label} className={`chip ${f.from === p.from && f.to === p.to ? 'active' : ''}`} onClick={() => set({ from: p.from, to: p.to })}>
+                {p.label}
+              </button>
+            ))}
+            {hasFilters && (
+              <button className="chip" onClick={() => setF({})}>
+                <X size={12} /> Limpar filtros
+              </button>
+            )}
+          </div>
+          <span className="muted">
+            {list.length} lançamento(s) · total <b className="num">{formatBRL(listTotal)}</b>
+            {listOpen > 0 && listOpen !== listTotal && (
+              <>
+                {' '}
+                · em aberto <b className="num">{formatBRL(listOpen)}</b>
+              </>
+            )}
+          </span>
         </div>
         <Tabs
           value={view}
           onChange={setView}
           options={[
-            { value: 'abertas', label: `Em aberto (${open.length})` },
-            { value: 'vencidas', label: `${isPay ? 'Vencidas' : 'Atrasadas'} (${overdue.length})` },
+            { value: 'abertas', label: `Em aberto (${filtered.filter((t) => txStatus(t) !== 'pago').length})` },
+            { value: 'vencidas', label: `${isPay ? 'Vencidas' : 'Atrasadas'} (${filtered.filter((t) => isOverdue(t, ref)).length})` },
             { value: 'quitadas', label: isPay ? 'Pagas' : 'Recebidas' },
             { value: 'todas', label: 'Todas' },
           ]}

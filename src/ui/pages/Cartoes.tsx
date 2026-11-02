@@ -8,6 +8,7 @@ import type { Card } from '../../domain/types';
 import { deleteCard, deleteInvoicePayment, payInvoice, saveCard } from '../../services/finance';
 import { useApp } from '../AppContext';
 import { TxTable } from '../components/TxTable';
+import { CardSpending } from '../components/CardSpending';
 import { AttachmentButton, AttachmentPicker } from '../components/Attachments';
 import { addAttachment } from '../../services/attachments';
 import { Badge, EmptyState, Field, Modal, MoneyInput, Progress } from '../components/ui';
@@ -377,6 +378,8 @@ export function Cartoes({ data, lookups }: { data: FinanceData; lookups: Lookups
           </div>
         </div>
       )}
+
+      {card && month && <CardSpending data={data} card={card} invoiceMonth={month} />}
 
       {form && <CardForm data={data} card={form.card} onClose={() => setForm(null)} />}
       {paying && card && <PayInvoiceModal data={data} card={card} invoice={paying} onClose={() => setPaying(null)} />}
