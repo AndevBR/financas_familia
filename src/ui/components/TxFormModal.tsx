@@ -350,35 +350,43 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
               ))}
             </select>
           </Field>
-          {isCredit ? (
-            <Field label="Cartão" error={errors.find((e) => e.includes('cartão'))}>
-              {data.cards.length === 0 ? (
-                <div className="hint">Cadastre um cartão no menu Cartões.</div>
-              ) : (
-                <select className="input" value={f.cardId ?? ''} onChange={(e) => set({ cardId: e.target.value })} aria-label="Cartão">
-                  <option value="">Selecione</option>
-                  {data.cards
-                    .filter((c) => !c.archived || c.id === f.cardId)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
-              )}
-            </Field>
-          ) : (
-            <Field label={f.type === 'receita' ? 'Conta de entrada' : 'Conta de saída'}>
-              <select className="input" value={f.accountId ?? ''} onChange={(e) => set({ accountId: e.target.value || undefined })} aria-label="Conta">
-                <option value="">Não informar</option>
+          <Field
+            label={f.type === 'receita' ? 'Receber em' : 'Pagar com'}
+            error={errors.find((e) => e.includes('cartão'))}
+            hint={f.type === 'despesa' && data.cards.length === 0 ? 'Cadastre seus cartões no menu Cartões para usá-los aqui.' : undefined}
+          >
+            <select
+              className="input"
+              aria-label={f.type === 'receita' ? 'Receber em' : 'Pagar com'}
+              value={isCredit ? (f.cardId ? `card:${f.cardId}` : 'card:') : f.accountId ? `acc:${f.accountId}` : ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith('card:')) set({ paymentMethod: 'credito', cardId: v.slice(5) || undefined });
+                else set({ accountId: v.slice(4) || undefined, ...(isCredit ? { paymentMethod: 'pix' as PaymentMethod } : {}) });
+              }}
+            >
+              <option value="">Não informar</option>
+              <optgroup label="Contas">
                 {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
+                  <option key={a.id} value={`acc:${a.id}`}>
                     {a.name}
                   </option>
                 ))}
-              </select>
-            </Field>
-          )}
+              </optgroup>
+              {f.type === 'despesa' && data.cards.length > 0 && (
+                <optgroup label="Cartões de crédito">
+                  {isCredit && !f.cardId && <option value="card:">Selecione o cartão</option>}
+                  {data.cards
+                    .filter((c) => !c.archived || c.id === f.cardId)
+                    .map((c) => (
+                      <option key={c.id} value={`card:${c.id}`}>
+                        💳 {c.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+            </select>
+          </Field>
 
           {isCredit && !editing && (
             <Field label="Parcelas" hint={installmentPreview} className="full">

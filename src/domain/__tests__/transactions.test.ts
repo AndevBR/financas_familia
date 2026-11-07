@@ -1,4 +1,4 @@
-import { addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
+import { payWithCard, addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
 describe('lançamentos', () => {
@@ -83,5 +83,45 @@ describe('lançamentos', () => {
     const edited = applyAmountChange(t, 1500);
     expect(txStatus(edited)).toBe('pago');
     expect(edited.payments[0].amount).toBe(1500);
+  });
+
+  describe('pagar conta com cartão de crédito', () => {
+    const c = card({ id: 'nu', closingDay: 27, dueDay: 3 });
+
+    it('a conta vira compra na fatura, mantendo id e categoria', () => {
+      const conta = tx({ id: 'luz', description: 'Conta de luz', amount: 33819, date: '2026-11-10', categoryId: 'casa', subcategoryId: 'energia', paymentMethod: 'boleto', recurrenceId: 'r1', estimated: true });
+      const { updated, created } = payWithCard(conta, { card: c, date: '2026-11-08' }, newId);
+      expect(created).toHaveLength(0);
+      expect(updated).toMatchObject({ id: 'luz', amount: 33819, cardId: 'nu', paymentMethod: 'credito', invoiceMonth: '2026-12', categoryId: 'casa', subcategoryId: 'energia', recurrenceId: 'r1', payments: [], date: '2026-11-08' });
+      expect(updated!.estimated).toBeUndefined();
+      expect(updated!.accountId).toBeUndefined();
+      expect(txStatus(updated!)).toBe('pago'); // sai de contas a pagar
+    });
+
+    it('respeita fatura escolhida e parcelas', () => {
+      const conta = tx({ id: 'escola', description: 'Escola', amount: 90000 });
+      const { updated, created } = payWithCard(conta, { card: c, date: '2026-11-08', invoiceMonth: '2026-11', installments: 3 }, newId);
+      const all = [updated!, ...created];
+      expect(all.map((t) => t.invoiceMonth)).toEqual(['2026-11', '2026-12', '2027-01']);
+      expect(all.map((t) => t.amount)).toEqual([30000, 30000, 30000]);
+      expect(all[0].id).toBe('escola');
+      expect(all[1].description).toBe('Escola (2/3)');
+    });
+
+    it('com pagamento parcial, só o restante vai para o cartão', () => {
+      const conta = { ...tx({ id: 'agua', amount: 10000, categoryId: 'casa' }), payments: [{ id: 'p', date: '2026-11-01', amount: 4000, accountId: 'a1' }] };
+      const { updated, created } = payWithCard(conta, { card: c, date: '2026-11-08' }, newId);
+      expect(updated).toMatchObject({ id: 'agua', amount: 4000 });
+      expect(txStatus(updated!)).toBe('pago');
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({ amount: 6000, cardId: 'nu', categoryId: 'casa' });
+      expect(updated!.amount + created[0].amount).toBe(10000); // total não duplica
+    });
+
+    it('recusa receitas, contas pagas e compras que já estão no cartão', () => {
+      expect(() => payWithCard(tx({ type: 'receita' }), { card: c, date: '2026-11-08' }, newId)).toThrow();
+      expect(() => payWithCard({ ...tx({ amount: 100 }), payments: [{ id: 'p', date: '2026-11-01', amount: 100 }] }, { card: c, date: '2026-11-08' }, newId)).toThrow();
+      expect(() => payWithCard(tx({ cardId: 'nu' }), { card: c, date: '2026-11-08' }, newId)).toThrow();
+    });
   });
 });

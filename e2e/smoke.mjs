@@ -175,6 +175,38 @@ await page.locator('.bar-item', { hasText: 'Casa' }).first().waitFor();
 await shot('cartao-gastos');
 step('gastos do cartão por categoria');
 
+// conta a pagar paga com o cartão de crédito
+await page.click('a[href="#/pagar"]');
+await page.getByRole('button', { name: 'Nova conta a pagar' }).click();
+await modal().getByLabel('Valor', { exact: true }).pressSequentially('338,19');
+await modal().getByLabel('Descrição').fill('Mensalidade escola');
+await modal().getByLabel('Categoria', { exact: true }).selectOption({ label: 'Família' });
+await page.keyboard.press('Enter');
+await saved('Despesa lançada');
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByRole('button', { name: 'Pagar' }).click();
+await modal().getByLabel('Pagar com').selectOption({ label: '💳 Nubank' });
+await modal().getByText('R$ 338,19').first().waitFor();
+await modal().getByLabel('Parcelas').selectOption('2');
+await modal().getByRole('button', { name: 'Pagar no cartão' }).click();
+await page.locator('.toast', { hasText: 'Pago no Nubank' }).waitFor();
+await page.locator('.modal').waitFor({ state: 'detached' });
+if (await page.locator('tr', { hasText: 'Mensalidade escola' }).count()) throw new Error('Conta paga no cartão continuou em contas a pagar');
+const escola = await page.evaluate(() => window.financeDb.transactions.filter((t) => t.description.startsWith('Mensalidade escola')).toArray());
+if (escola.length !== 2 || escola.some((t) => !t.cardId) || escola.reduce((a, t) => a + t.amount, 0) !== 33819) throw new Error('Conta não foi para o cartão corretamente');
+step('conta a pagar paga com cartão de crédito (2x)');
+
+// lançamento escolhendo o cartão direto em "Pagar com"
+await page.keyboard.press('n');
+await modal().getByLabel('Valor', { exact: true }).fill('59,90');
+await modal().getByLabel('Descrição').fill('Streaming');
+await modal().getByLabel('Pagar com').selectOption({ label: '💳 Nubank' });
+if ((await modal().getByLabel('Forma de pagamento').inputValue()) !== 'credito') throw new Error('Forma de pagamento não mudou para cartão');
+await modal().getByLabel('Fatura', { exact: true }).waitFor();
+await page.keyboard.press('Enter');
+await saved('Despesa lançada');
+step('lançamento com cartão escolhido em "Pagar com"');
+await page.click('a[href="#/cartoes"]');
+
 // pagamento parcial da fatura com comprovante
 await page.getByRole('button', { name: 'Pagar fatura' }).click();
 await modal().locator('input.money').fill('50');

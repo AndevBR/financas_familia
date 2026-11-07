@@ -30,9 +30,10 @@ describe('comprovantes', () => {
     await addAttachment(file('comprovante.pdf', 'application/pdf'), { transactionId: t.id, paymentId }, db);
     await addAttachment(file('foto.png', 'image/png'), { transactionId: t.id }, db); // anexado depois
     const list = attachmentsFor(await db.attachments.toArray(), { transactionId: t.id });
-    expect(list.map((a) => a.name)).toEqual(['comprovante.pdf', 'foto.png']);
-    expect(list[0].paymentId).toBe(paymentId);
-    expect(new Uint8Array(list[0].data)).toEqual(new Uint8Array([1, 2, 3, 250]));
+    expect(list.map((a) => a.name).sort()).toEqual(['comprovante.pdf', 'foto.png']);
+    const pdf = list.find((a) => a.name === 'comprovante.pdf')!;
+    expect(pdf.paymentId).toBe(paymentId);
+    expect(new Uint8Array(pdf.data)).toEqual(new Uint8Array([1, 2, 3, 250]));
     await deleteTransaction(t.id, {}, db);
     expect(await db.attachments.count()).toBe(0);
   });

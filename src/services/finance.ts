@@ -7,6 +7,7 @@ import { seedCategories } from '../domain/defaults';
 import { generateRecurrence, resumeRecurrence } from '../domain/recurrence';
 import {
   addPayment,
+  payWithCard,
   applyAmountChange,
   buildTransactions,
   defaultDescription,
@@ -153,6 +154,23 @@ export async function settleTransaction(id: ID, date: ISODate = today(), account
   if (!t) throw new Error('Lançamento não encontrado.');
   if (isCardTx(t)) throw new Error('Compras no cartão são quitadas pelo pagamento da fatura.');
   await db.transactions.put({ ...settle(t, newId, date, accountId), estimated: undefined });
+}
+
+/** Paga uma conta em aberto com o cartão de crédito (vira compra na fatura). */
+export async function payTransactionWithCard(
+  id: ID,
+  opts: { cardId: ID; date: ISODate; invoiceMonth?: string; installments?: number },
+  db: FinanceDB = defaultDb,
+): Promise<Transaction[]> {
+  const [t, card] = await Promise.all([db.transactions.get(id), db.cards.get(opts.cardId)]);
+  if (!t) throw new Error('Lançamento não encontrado.');
+  if (!card) throw new Error('Selecione o cartão de crédito.');
+  const { updated, created } = payWithCard(t, { card, date: opts.date, invoiceMonth: opts.invoiceMonth, installments: opts.installments }, newId);
+  await db.transaction('rw', db.transactions, async () => {
+    if (updated) await db.transactions.put(updated);
+    if (created.length) await db.transactions.bulkAdd(created);
+  });
+  return [...(updated ? [updated] : []), ...created];
 }
 
 export async function reopenTransaction(id: ID, db: FinanceDB = defaultDb) {

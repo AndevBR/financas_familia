@@ -5,6 +5,7 @@ import {
   deleteTransaction,
   ensureSeed,
   payInvoice,
+  payTransactionWithCard,
   registerPayment,
   saveCard,
   saveQuickEntry,
@@ -107,6 +108,21 @@ describe('serviços com IndexedDB', () => {
     // sem escolha explícita, mantém a fatura atual ao editar outros campos
     await updateTransaction(t.id, { description: 'Saldo fatura outubro', amount: t.amount, date: t.date, paymentMethod: 'credito', cardId: card.id, invoiceMonth: '2026-11' }, db);
     expect((await db.transactions.get(t.id))!.invoiceMonth).toBe('2026-11');
+  });
+
+  it('conta a pagar paga com cartão sai de contas a pagar e entra na fatura sem duplicar', async () => {
+    await saveCard({ name: 'Nubank', limit: 500000, closingDay: 27, dueDay: 3, color: '#000' }, db);
+    const card = (await db.cards.toArray())[0];
+    const [conta] = await saveQuickEntry({ type: 'despesa', amount: 33819, date: '2026-11-10', paymentMethod: 'boleto', paid: false, description: 'Conta de luz' }, db);
+    const before = monthSummary(await loadData(), '2026-11', '2026-11-08');
+    expect(before.toPay).toBe(33819);
+    await payTransactionWithCard(conta.id, { cardId: card.id, date: '2026-11-08' }, db);
+    expect(await db.transactions.count()).toBe(1);
+    const after = monthSummary(await loadData(), '2026-11', '2026-11-08');
+    expect(after.expenses).toBe(33819); // continua sendo uma despesa só
+    expect(after.toPay).toBe(0); // vai vencer na fatura de dezembro
+    const dez = monthSummary(await loadData(), '2026-12', '2026-11-08');
+    expect(dez.toPay).toBe(33819);
   });
 
   it('transferências validam contas', async () => {

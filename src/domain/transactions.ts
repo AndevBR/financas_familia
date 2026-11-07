@@ -193,3 +193,52 @@ export function applyAmountChange(t: Transaction, newAmount: Cents): Transaction
   }
   return { ...t, amount: newAmount };
 }
+
+export interface PayWithCardOptions {
+  card: Card;
+  /** Data em que a conta foi passada no cartão (define a fatura automática). */
+  date: ISODate;
+  /** Fatura escolhida manualmente; vazio = calculada pela data. */
+  invoiceMonth?: MonthKey;
+  installments?: number;
+}
+
+/**
+ * Paga uma conta em aberto com o cartão de crédito: o saldo em aberto vira compra
+ * na fatura (com parcelas, se houver) e sai de "contas a pagar". Nada é duplicado:
+ * - sem baixa anterior: o próprio lançamento vira a compra (mantém id, categoria e comprovantes);
+ * - com baixa parcial: o que já foi pago fica no lançamento original e só o restante vai para o cartão.
+ */
+export function payWithCard(t: Transaction, opts: PayWithCardOptions, newId: IdFactory): { updated?: Transaction; created: Transaction[] } {
+  if (t.type !== 'despesa') throw new Error('Só despesas podem ser pagas com cartão de crédito.');
+  if (isCardTx(t)) throw new Error('Este lançamento já está no cartão.');
+  const open = openAmount(t);
+  if (open <= 0) throw new Error('Esta conta já está paga.');
+  const description = t.description.replace(/\s*\(\d+\/\d+\)$/, '');
+  const [first, ...rest] = buildTransactions(
+    {
+      type: 'despesa',
+      amount: open,
+      date: opts.date,
+      categoryId: t.categoryId,
+      subcategoryId: t.subcategoryId,
+      merchant: t.merchant,
+      paymentMethod: 'credito',
+      cardId: opts.card.id,
+      personId: t.personId,
+      notes: t.notes,
+      paid: true,
+      installments: opts.installments ?? 1,
+      invoiceMonth: opts.invoiceMonth,
+      recurrenceId: t.recurrenceId,
+    },
+    newId,
+    { card: opts.card, description, now: t.createdAt },
+  );
+  if (t.payments.length === 0) {
+    // reaproveita o id: comprovantes e vínculos continuam apontando para o mesmo lançamento
+    return { updated: { ...first, id: t.id, estimated: undefined }, created: rest };
+  }
+  const paid = paidAmount(t);
+  return { updated: { ...t, amount: paid, estimated: undefined }, created: [first, ...rest] };
+}
