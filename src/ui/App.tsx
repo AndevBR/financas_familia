@@ -21,6 +21,7 @@ import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-do
 import { isOverdue } from '../domain/transactions';
 import { today } from '../domain/dates';
 import { AppProvider, useApp } from './AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PaymentModal } from './components/PaymentModal';
 import { AttachmentsModal } from './components/Attachments';
 import { TxFormModal } from './components/TxFormModal';
@@ -133,6 +134,7 @@ function Shell({ data, dark }: { data: FinanceData; dark: boolean }) {
           {!data.loaded ? (
             <div className="empty">Carregando…</div>
           ) : (
+            <ErrorBoundary resetKey={loc.pathname}>
             <Routes>
               <Route path="/" element={<Dashboard data={data} lookups={lookups} />} />
               <Route path="/lancamentos" element={<Lancamentos data={data} lookups={lookups} />} />
@@ -148,6 +150,7 @@ function Shell({ data, dark }: { data: FinanceData; dark: boolean }) {
               <Route path="/configuracoes" element={<Configuracoes data={data} />} />
               <Route path="*" element={<Dashboard data={data} lookups={lookups} />} />
             </Routes>
+            </ErrorBoundary>
           )}
         </main>
       </div>
@@ -165,12 +168,12 @@ export function App() {
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppProvider
         renderModals={(m, close) => (
-          <>
+          <ErrorBoundary resetKey={JSON.stringify(Object.keys(m))} onClose={close}>
             {m.entry && <TxFormModal data={data} onClose={close} prefill={m.entry === true ? undefined : m.entry} />}
             {m.edit && <TxFormModal data={data} onClose={close} editing={m.edit} />}
             {m.payment && <PaymentModal data={data} tx={m.payment} onClose={close} />}
             {m.attachments && <AttachmentsModal {...m.attachments} attachments={data.attachments} onClose={close} />}
-          </>
+          </ErrorBoundary>
         )}
       >
         <Shell data={data} dark={resolved === 'escuro'} />

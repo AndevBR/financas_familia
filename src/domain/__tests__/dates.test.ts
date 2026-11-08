@@ -1,4 +1,4 @@
-import { addMonths, addMonthKey, formatDateBR, formatMonth, makeDate, monthEnd, monthRange, diffDays } from '../dates';
+import { isValidISODate, addMonths, addMonthKey, formatDateBR, formatMonth, makeDate, monthEnd, monthRange, diffDays } from '../dates';
 
 describe('dates', () => {
   it('ajusta o dia ao fim do mês', () => {
@@ -24,5 +24,16 @@ describe('dates', () => {
   it('lista meses e diferença de dias', () => {
     expect(monthRange('2026-11', '2027-02')).toEqual(['2026-11', '2026-12', '2027-01', '2027-02']);
     expect(diffDays('2026-11-02', '2026-10-30')).toBe(3);
+  });
+
+  it('reconhece datas incompletas enquanto a pessoa digita', () => {
+    expect(isValidISODate('2026-11-05')).toBe(true);
+    expect(isValidISODate('2028-02-29')).toBe(true);
+    expect(isValidISODate('')).toBe(false);
+    expect(isValidISODate('0002-11-05')).toBe(false); // ano ainda sendo digitado
+    expect(isValidISODate('0202-11-05')).toBe(false);
+    expect(isValidISODate('2026-02-30')).toBe(false);
+    expect(isValidISODate('2026-13-01')).toBe(false);
+    expect(isValidISODate(undefined)).toBe(false);
   });
 });

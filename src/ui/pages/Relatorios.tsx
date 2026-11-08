@@ -1,6 +1,6 @@
 import { FileDown, FileSpreadsheet, FileText } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { addMonthKey, currentMonth, diffDays, addDays, formatDateBR, formatMonth, monthEnd, monthKey, monthStart } from '../../domain/dates';
+import { useMemo, useRef, useState } from 'react';
+import { addMonthKey, isValidISODate, currentMonth, diffDays, addDays, formatDateBR, formatMonth, monthEnd, monthKey, monthStart } from '../../domain/dates';
 import { formatBRL, formatPercent, sum } from '../../domain/money';
 import { monthlyEquivalent } from '../../domain/recurrence';
 import {
@@ -58,7 +58,11 @@ const groupSheet = (name: string, groups: GroupTotal[]): Sheet => ({
 export function Relatorios({ data, lookups }: { data: FinanceData; lookups: Lookups }) {
   const { toast } = useApp();
   const [preset, setPreset] = useState<Preset>('mes');
-  const [range, setRange] = useState(presetRange('mes'));
+  const [rangeInput, setRange] = useState(presetRange('mes'));
+  // enquanto a data está sendo digitada (incompleta), mantém o último período válido
+  const lastValid = useRef(rangeInput);
+  if (isValidISODate(rangeInput.from) && isValidISODate(rangeInput.to) && rangeInput.from <= rangeInput.to) lastValid.current = rangeInput;
+  const range = lastValid.current;
   const [f, setF] = useState<TxFilters>({ type: 'despesa' });
   const [tab, setTab] = useState<Tab>('resumo');
   const set = (p: Partial<TxFilters>) => setF((c) => ({ ...c, ...p }));
@@ -154,10 +158,10 @@ export function Relatorios({ data, lookups }: { data: FinanceData; lookups: Look
             </select>
           </Field>
           <Field label="De">
-            <input className="input" type="date" value={range.from} onChange={(e) => (setPreset('custom'), setRange({ ...range, from: e.target.value }))} />
+            <input className="input" type="date" value={rangeInput.from} onChange={(e) => (setPreset('custom'), setRange({ ...rangeInput, from: e.target.value }))} />
           </Field>
           <Field label="Até">
-            <input className="input" type="date" value={range.to} onChange={(e) => (setPreset('custom'), setRange({ ...range, to: e.target.value }))} />
+            <input className="input" type="date" value={rangeInput.to} onChange={(e) => (setPreset('custom'), setRange({ ...rangeInput, to: e.target.value }))} />
           </Field>
           <Field label="Tipo">
             <select className="input" value={f.type ?? ''} onChange={(e) => set({ type: e.target.value as TxFilters['type'], categoryId: undefined, subcategoryId: undefined })}>

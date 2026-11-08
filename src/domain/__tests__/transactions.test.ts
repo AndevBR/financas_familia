@@ -42,6 +42,8 @@ describe('lançamentos', () => {
     expect(validateEntry({ type: 'despesa', amount: 100, date: '2026-10-10', paymentMethod: 'credito', paid: true }).length).toBeGreaterThan(0);
     expect(validateEntry({ type: 'despesa', amount: 100, date: '2026-10-10', paymentMethod: 'pix', paid: true, installments: 2 }).length).toBeGreaterThan(0);
     expect(validateEntry({ type: 'despesa', amount: 100, date: '2026-10-10', paymentMethod: 'pix', paid: true })).toEqual([]);
+    expect(validateEntry({ type: 'despesa', amount: 100, date: '0002-10-10', paymentMethod: 'pix', paid: true })[0]).toContain('Data inválida');
+    expect(validateEntry({ type: 'despesa', amount: 100, date: '', paymentMethod: 'pix', paid: true })[0]).toContain('Data inválida');
     expect(() => buildTransactions({ type: 'despesa', amount: -1, date: '2026-10-10', paymentMethod: 'pix', paid: true }, newId, { description: 'x' })).toThrow();
   });
 

@@ -1,7 +1,7 @@
 import { CreditCard } from 'lucide-react';
 import { useState } from 'react';
-import { invoiceChoices, invoiceMonthFor } from '../../domain/cards';
-import { formatDateBR, formatMonth, today } from '../../domain/dates';
+import { automaticInvoice, invoiceChoices } from '../../domain/cards';
+import { formatDateBR, formatMonth, isValidISODate, today } from '../../domain/dates';
 import { formatBRL, splitAmount } from '../../domain/money';
 import { openAmount, paidAmount } from '../../domain/transactions';
 import type { Transaction } from '../../domain/types';
@@ -40,11 +40,12 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
 
   const save = async () => {
     try {
+      if (!isValidISODate(date)) throw new Error('Data inválida. Confira dia, mês e ano.');
       setSaving(true);
       if (card) {
         await payTransactionWithCard(tx.id, { cardId: card.id, date, invoiceMonth, installments });
         if (file) await addAttachment(file, { transactionId: tx.id });
-        const month = invoiceMonth || invoiceMonthFor(date, card);
+        const month = invoiceMonth || automaticInvoice(card, date).month;
         toast(`Pago no ${card.name} · fatura de ${formatMonth(month)}`);
       } else {
         if (!amount || amount <= 0) throw new Error('Informe um valor maior que zero.');
@@ -61,7 +62,7 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
     }
   };
 
-  const autoInvoice = card ? invoiceChoices(card, date).find((c) => c.automatic)! : undefined;
+  const autoInvoice = card ? automaticInvoice(card, date) : undefined;
 
   return (
     <Modal

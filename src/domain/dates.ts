@@ -6,6 +6,17 @@ export function toISO(d: Date): ISODate {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * Data completa e plausível (AAAA-MM-DD, ano entre 1900 e 2200, dia que existe).
+ * Enquanto a pessoa digita no campo de data, o navegador entrega valores
+ * vazios ou com anos como "0002" — esses não são datas válidas.
+ */
+export function isValidISODate(s: unknown): s is ISODate {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  return y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && d >= 1 && d <= new Date(y, m, 0).getDate();
+}
+
 export function today(): ISODate {
   return toISO(new Date());
 }

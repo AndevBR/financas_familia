@@ -1,4 +1,4 @@
-import { buildInvoice, cardPurchases, invoiceChoices, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
+import { automaticInvoice, buildInvoice, cardPurchases, invoiceChoices, cardUsage, installmentPlans, invoiceClosingDate, invoiceDueDate, invoiceMonthFor, listInvoices } from '../cards';
 import { buildTransactions } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
@@ -119,5 +119,14 @@ describe('cartões de crédito', () => {
     expect(cardPurchases(list, { cardId: 'a', fromInvoice: '2026-11', toInvoice: '2026-11' }).map((t) => t.amount)).toEqual([200]);
     expect(cardPurchases(list, { fromInvoice: '2026-11', toInvoice: '2026-11' }).map((t) => t.amount)).toEqual([200, 300]);
     expect(cardPurchases(list, { fromInvoice: '2026-09', toInvoice: '2026-12' })).toHaveLength(3);
+  });
+
+  it('não quebra com data incompleta (pessoa digitando)', () => {
+    for (const d of ['', '0002-11-05', '2026-02-30']) {
+      expect(() => invoiceChoices(nubank, d)).not.toThrow();
+      expect(invoiceChoices(nubank, d)).toHaveLength(5);
+      expect(automaticInvoice(nubank, d).dueDate).toMatch(/^\d{4}-\d{2}-03$/);
+    }
+    expect(invoiceChoices(nubank, '2026-11-03', 'lixo').map((c) => c.month)).not.toContain('lixo');
   });
 });

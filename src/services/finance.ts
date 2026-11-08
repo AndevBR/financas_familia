@@ -2,7 +2,7 @@
 // aqui apenas orquestramos leitura/escrita de forma atômica.
 import { db as defaultDb, newId, type FinanceDB } from '../db/database';
 import { invoiceMonthFor } from '../domain/cards';
-import { addMonthKey, monthEnd, today } from '../domain/dates';
+import { addMonthKey, isValidISODate, monthEnd, today } from '../domain/dates';
 import { seedCategories } from '../domain/defaults';
 import { generateRecurrence, resumeRecurrence } from '../domain/recurrence';
 import {
@@ -20,6 +20,11 @@ import {
 import { rememberMerchant } from '../domain/suggestions';
 import { validateTransfer } from '../domain/accounts';
 import type { Account, Budget, Card, Category, Cents, ID, ISODate, InvoicePayment, Person, Recurrence, Subcategory, Transaction, Transfer } from '../domain/types';
+
+function assertDate(date: string | undefined, optional = false) {
+  if (optional && !date) return;
+  if (!isValidISODate(date)) throw new Error('Data inválida. Confira dia, mês e ano.');
+}
 
 // ---------------------------------------------------------------- inicialização
 
@@ -82,6 +87,7 @@ export async function updateTransaction(id: ID, edit: TxEdit, db: FinanceDB = de
   const t = await db.transactions.get(id);
   if (!t) throw new Error('Lançamento não encontrado.');
   if (!(edit.amount > 0)) throw new Error('Informe um valor maior que zero.');
+  assertDate(edit.date);
   let next: Transaction = applyAmountChange(t, edit.amount);
   const card = edit.paymentMethod === 'credito' && edit.cardId ? await db.cards.get(edit.cardId) : undefined;
   if (edit.paymentMethod === 'credito' && !card) throw new Error('Selecione o cartão de crédito.');
@@ -145,6 +151,7 @@ export async function deleteTransaction(id: ID, opts: { wholeGroup?: boolean } =
 export async function registerPayment(id: ID, amount: Cents, date: ISODate, accountId: ID | undefined, db: FinanceDB = defaultDb): Promise<ID> {
   const t = await db.transactions.get(id);
   if (!t) throw new Error('Lançamento não encontrado.');
+  assertDate(date);
   const paymentId = newId();
   await db.transactions.put(addPayment(t, { id: paymentId, amount, date, accountId }));
   return paymentId;
@@ -166,6 +173,7 @@ export async function payTransactionWithCard(
   const [t, card] = await Promise.all([db.transactions.get(id), db.cards.get(opts.cardId)]);
   if (!t) throw new Error('Lançamento não encontrado.');
   if (!card) throw new Error('Selecione o cartão de crédito.');
+  assertDate(opts.date);
   const { updated, created } = payWithCard(t, { card, date: opts.date, invoiceMonth: opts.invoiceMonth, installments: opts.installments }, newId);
   await db.transaction('rw', db.transactions, async () => {
     if (updated) await db.transactions.put(updated);
@@ -198,6 +206,7 @@ export async function reopenTransaction(id: ID, db: FinanceDB = defaultDb) {
 
 export async function payInvoice(p: Omit<InvoicePayment, 'id'>, db: FinanceDB = defaultDb): Promise<InvoicePayment> {
   if (!(p.amount > 0)) throw new Error('Informe um valor maior que zero.');
+  assertDate(p.date);
   const payment = { ...p, id: newId() };
   await db.invoicePayments.add(payment);
   return payment;
@@ -321,6 +330,7 @@ export async function deletePerson(id: ID, db: FinanceDB = defaultDb) {
 }
 
 export async function saveTransfer(tr: Omit<Transfer, 'id'> & { id?: ID }, db: FinanceDB = defaultDb) {
+  assertDate(tr.date);
   const errors = validateTransfer(tr);
   if (errors.length) throw new Error(errors.join(' '));
   await db.transfers.put({ ...tr, id: tr.id ?? newId() });
@@ -363,6 +373,8 @@ export async function saveRecurrence(rec: Omit<Recurrence, 'id' | 'generatedUnti
   if (!rec.description.trim()) throw new Error('Informe a descrição.');
   if (!(rec.amount > 0)) throw new Error('Informe um valor maior que zero.');
   if (rec.paymentMethod === 'credito' && !rec.cardId) throw new Error('Selecione o cartão de crédito.');
+  assertDate(rec.startDate);
+  assertDate(rec.endDate, true);
   if (rec.id) {
     const existing = await db.recurrences.get(rec.id);
     if (!existing) throw new Error('Recorrência não encontrada.');

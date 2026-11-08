@@ -1,4 +1,4 @@
-import { addMonths, diffDays, today } from './dates';
+import { addMonths, diffDays, isValidISODate, today } from './dates';
 import { splitAmount, sum } from './money';
 import type { BillOrigin, Card, Cents, ID, ISODate, MonthKey, Payment, PaymentMethod, Transaction, TxStatus, TxType } from './types';
 import { invoiceMonthFor } from './cards';
@@ -74,7 +74,7 @@ export interface QuickEntryInput {
 export function validateEntry(input: QuickEntryInput, card?: Card): string[] {
   const errors: string[] = [];
   if (!Number.isFinite(input.amount) || input.amount <= 0) errors.push('Informe um valor maior que zero.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) errors.push('Data inválida.');
+  if (!isValidISODate(input.date)) errors.push('Data inválida. Confira dia, mês e ano.');
   if (input.paymentMethod === 'credito') {
     if (input.type === 'receita') errors.push('Receitas não podem ser lançadas no cartão de crédito.');
     if (!input.cardId || !card) errors.push('Selecione o cartão de crédito.');

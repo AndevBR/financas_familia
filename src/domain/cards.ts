@@ -1,4 +1,4 @@
-import { addMonthKey, makeDate, monthKey, parseISO, today } from './dates';
+import { addMonthKey, isValidISODate, makeDate, monthKey, parseISO, today } from './dates';
 import { sum } from './money';
 import type { Card, Cents, ISODate, InvoicePayment, MonthKey, Transaction } from './types';
 
@@ -166,10 +166,16 @@ export interface InvoiceChoice {
  * que o banco colocou em outra fatura.
  */
 export function invoiceChoices(card: Pick<Card, 'closingDay' | 'dueDay'>, purchaseDate: ISODate, include?: MonthKey): InvoiceChoice[] {
-  const auto = invoiceMonthFor(purchaseDate, card);
+  // data incompleta (pessoa ainda digitando) usa hoje como referência
+  const auto = invoiceMonthFor(isValidISODate(purchaseDate) ? purchaseDate : today(), card);
   const months = new Set([-2, -1, 0, 1, 2].map((i) => addMonthKey(auto, i)));
-  if (include) months.add(include);
+  if (include && /^\d{4}-\d{2}$/.test(include)) months.add(include);
   return [...months].sort().map((month) => ({ month, dueDate: invoiceDueDate(month, card), automatic: month === auto }));
+}
+
+/** Fatura calculada automaticamente pela data (ou por hoje, se a data estiver incompleta). */
+export function automaticInvoice(card: Pick<Card, 'closingDay' | 'dueDay'>, purchaseDate: ISODate): InvoiceChoice {
+  return invoiceChoices(card, purchaseDate).find((c) => c.automatic)!;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, RotateCcw, Sparkles } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { invoiceChoices, invoiceMonthFor } from '../../domain/cards';
+import { automaticInvoice, invoiceChoices } from '../../domain/cards';
 import { addDays, formatDateBR, formatMonth, today } from '../../domain/dates';
 import { formatBRL, splitAmount } from '../../domain/money';
 import { findMerchant, recentCombos, searchMerchants } from '../../domain/suggestions';
@@ -223,7 +223,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
 
   const installmentPreview =
     isCredit && card && f.amount > 0 && (f.installments ?? 1) >= 1
-      ? `${(f.installments ?? 1) > 1 ? `${f.installments}x de ${formatBRL(splitAmount(f.amount, f.installments!)[1] ?? f.amount)} · ` : ''}1ª parcela na fatura de ${formatMonth(f.invoiceMonth || invoiceMonthFor(f.date, card))}`
+      ? `${(f.installments ?? 1) > 1 ? `${f.installments}x de ${formatBRL(splitAmount(f.amount, f.installments!)[1] ?? f.amount)} · ` : ''}1ª parcela na fatura de ${formatMonth(f.invoiceMonth || automaticInvoice(card, f.date).month)}`
       : undefined;
 
   const paidLabel = f.type === 'receita' ? ['Recebido', 'A receber'] : ['Pago', 'Em aberto'];
@@ -411,7 +411,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
           {isCredit && card && (
             <Field label="Fatura" className="full" hint="Escolhida automaticamente pela data e pelo fechamento do cartão. Mude se a compra entrou em outra fatura.">
               <select className="input" value={f.invoiceMonth ?? ''} onChange={(e) => set({ invoiceMonth: e.target.value || undefined })} aria-label="Fatura">
-                {!editing && <option value="">Automática — {formatMonth(invoiceMonthFor(f.date, card))} (vence {formatDateBR(invoiceChoices(card, f.date).find((c) => c.automatic)!.dueDate)})</option>}
+                {!editing && <option value="">Automática — {formatMonth(automaticInvoice(card, f.date).month)} (vence {formatDateBR(automaticInvoice(card, f.date).dueDate)})</option>}
                 {invoiceChoices(card, f.date, f.invoiceMonth).map((c) => (
                   <option key={c.month} value={c.month}>
                     Fatura de {formatMonth(c.month)} — vence {formatDateBR(c.dueDate)}

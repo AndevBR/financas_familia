@@ -239,6 +239,23 @@ await modal().getByLabel('Fatura', { exact: true }).waitFor();
 await page.keyboard.press('Enter');
 await saved('Despesa lançada');
 step('lançamento com cartão escolhido em "Pagar com"');
+
+// data digitada pelo teclado (sem calendário) na nova compra do cartão
+await page.keyboard.press('n');
+await modal().getByLabel('Valor', { exact: true }).fill('99,90');
+await modal().getByLabel('Descrição').fill('Compra data digitada');
+await modal().getByLabel('Pagar com').selectOption({ label: '💳 Nubank' });
+await modal().getByLabel('Data').click({ position: { x: 12, y: 12 } });
+await page.keyboard.type('05112026', { delay: 40 });
+await modal().getByLabel('Fatura', { exact: true }).waitFor();
+// a ordem dia/mês depende do idioma do navegador: aceita as duas leituras
+const dataDigitada = await modal().getByLabel('Data').inputValue();
+if (!['2026-11-05', '2026-05-11'].includes(dataDigitada)) throw new Error('Data digitada não foi aceita: ' + dataDigitada);
+await page.keyboard.press('Enter');
+await saved('Despesa lançada');
+const digitada = await page.evaluate(() => window.financeDb.transactions.filter((t) => t.description === 'Compra data digitada').first());
+if (digitada.date !== dataDigitada || !digitada.invoiceMonth) throw new Error('Compra com data digitada salva errado');
+step('data digitada pelo teclado na compra do cartão');
 await page.click('a[href="#/cartoes"]');
 
 // pagamento parcial da fatura com comprovante
@@ -291,6 +308,12 @@ for (const [label, ext] of [['Excel', 'xlsx'], ['CSV', 'csv'], ['PDF', 'pdf']]) 
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: label }).click()]);
   if (!dl.suggestedFilename().endsWith(ext)) throw new Error(`Exportação ${label} falhou`);
 }
+// clica no começo do campo (primeiro segmento) e digita como uma pessoa
+await page.locator('input[type=date]').first().click({ position: { x: 12, y: 12 } });
+await page.keyboard.type('01012026', { delay: 30 });
+const deValor = await page.locator('input[type=date]').first().inputValue();
+if (deValor !== '2026-01-01') throw new Error('Data do relatório não aceita: ' + deValor);
+await expectText('01/01/2026 a');
 for (const t of ['Rankings', 'Comparação entre meses', 'O que mais cresceu', 'Gastos recorrentes', 'Evolução das economias', 'Lançamentos']) await page.getByRole('tab', { name: t }).click();
 await page.getByRole('tab', { name: 'Rankings' }).click();
 await shot('relatorios');
