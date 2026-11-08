@@ -67,6 +67,8 @@ export interface QuickEntryInput {
   installments?: number;
   /** Fatura da 1ª parcela escolhida manualmente; vazio = calculada pela data. */
   invoiceMonth?: MonthKey;
+  /** Compra no cartão usando o limite extra. */
+  useExtraLimit?: boolean;
   recurrenceId?: ID;
   estimated?: boolean;
 }
@@ -139,6 +141,7 @@ export function buildTransactions(
       cardId: card.id,
       accountId: undefined,
       invoiceMonth: addMonths(`${firstInvoice}-01`, i).slice(0, 7),
+      useExtraLimit: input.useExtraLimit || undefined,
       payments: [],
       installment: groupId ? { groupId, number: i + 1, total: n, totalAmount: input.amount } : undefined,
     }));
@@ -202,6 +205,7 @@ export interface PayWithCardOptions {
   /** Fatura escolhida manualmente; vazio = calculada pela data. */
   invoiceMonth?: MonthKey;
   installments?: number;
+  useExtraLimit?: boolean;
 }
 
 /**
@@ -231,6 +235,7 @@ export function payWithCard(t: Transaction, opts: PayWithCardOptions, newId: IdF
       paid: true,
       installments: opts.installments ?? 1,
       invoiceMonth: opts.invoiceMonth,
+      useExtraLimit: opts.useExtraLimit,
       recurrenceId: t.recurrenceId,
     },
     newId,
@@ -293,6 +298,7 @@ export function cardPaymentToBill(all: Transaction[], tx: Transaction): { put: T
       invoiceMonth: undefined,
       installment: undefined,
       billOrigin: undefined,
+      useExtraLimit: undefined,
       payments: [],
     },
     deleteIds: group.map((x) => x.id).filter((id) => id !== billId),

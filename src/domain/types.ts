@@ -68,6 +68,8 @@ export interface Card {
   name: string;
   holderId?: ID;
   limit: Cents;
+  /** Limite extra do banco (ex.: Pix no crédito): entra na fatura sem consumir o limite normal. */
+  extraLimit?: Cents;
   closingDay: number;
   dueDay: number;
   color: string;
@@ -124,6 +126,8 @@ export interface Transaction {
   installment?: Installment;
   /** Conta a pagar que foi paga com o cartão: guarda como ela era, para poder desfazer. */
   billOrigin?: BillOrigin;
+  /** Compra no cartão feita usando o limite extra (não consome o limite normal). */
+  useExtraLimit?: boolean;
   /** Lançamento de juros/multa gerado ao pagar outra conta (ou fatura) com valor maior. */
   interestOf?: { transactionId?: ID; invoicePaymentId?: ID };
   /** Valor somado à conta por ter sido paga/recebida a mais (desfeito ao reabrir). */

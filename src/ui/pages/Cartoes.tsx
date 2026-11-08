@@ -63,6 +63,9 @@ function CardForm({ data, card, onClose }: { data: FinanceData; card?: Card; onC
         <Field label="Limite (R$)">
           <MoneyInput value={f.limit} onChange={(v) => setF({ ...f, limit: v ?? 0 })} />
         </Field>
+        <Field label="Limite extra (R$) — opcional" hint="Ex.: limite para Pix no crédito. Entra na fatura sem consumir o limite normal.">
+          <MoneyInput value={f.extraLimit ?? 0} onChange={(v) => setF({ ...f, extraLimit: v ?? undefined })} ariaLabel="Limite extra" />
+        </Field>
         <Field label="Dia de fechamento" hint="Compras a partir deste dia vão para a próxima fatura">
           <input className="input" type="number" min={1} max={31} value={f.closingDay} onChange={(e) => setF({ ...f, closingDay: Number(e.target.value) })} />
         </Field>
@@ -280,6 +283,11 @@ export function Cartoes({ data, lookups }: { data: FinanceData; lookups: Lookups
                     <span>Disponível {formatBRL(u.available)}</span>
                   </div>
                   <Progress value={u.usedPercent} label={`Limite usado ${formatPercent(u.usedPercent)}`} />
+                  {u.extra && (
+                    <div className="tiny" style={{ marginTop: 6, opacity: 0.9 }}>
+                      Limite extra: usado {formatBRL(u.extra.used)} de {formatBRL(u.extra.limit)}
+                    </div>
+                  )}
                 </div>
               </div>
             );

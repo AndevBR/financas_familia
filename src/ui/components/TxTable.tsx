@@ -12,7 +12,18 @@ import { AttachmentButton } from './Attachments';
 
 export function StatusBadge({ t }: { t: Transaction }) {
   const label = statusLabel(t);
-  if (isCardTx(t)) return <Badge tone="info">Na fatura {t.invoiceMonth ? formatMonthShort(t.invoiceMonth) : ''}</Badge>;
+  if (isCardTx(t))
+    return (
+      <>
+        <Badge tone="info">Na fatura {t.invoiceMonth ? formatMonthShort(t.invoiceMonth) : ''}</Badge>
+        {t.useExtraLimit && (
+          <>
+            {' '}
+            <Badge tone="warning">limite extra</Badge>
+          </>
+        )}
+      </>
+    );
   if (isOverdue(t)) return <Badge tone="critical">{label}</Badge>;
   const s = txStatus(t);
   if (s === 'pago') return <Badge tone="good">{label}</Badge>;

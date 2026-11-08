@@ -85,6 +85,7 @@ function initialState(data: FinanceData, prefill?: Partial<QuickEntryInput>, edi
       accountId: editing.accountId ?? editing.payments[0]?.accountId,
       cardId: editing.cardId,
       invoiceMonth: editing.invoiceMonth,
+      useExtraLimit: editing.useExtraLimit,
       personId: editing.personId,
       paid: txStatus(editing) === 'pago',
       notes: editing.notes ?? '',
@@ -155,7 +156,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
 
   const submit = async (e?: FormEvent, again = false) => {
     e?.preventDefault();
-    const input: QuickEntryInput = { ...f, installments: isCredit ? f.installments : 1 };
+    const input: QuickEntryInput = { ...f, installments: isCredit ? f.installments : 1, useExtraLimit: isCredit ? f.useExtraLimit : undefined };
     const errs = validateEntry(input, card);
     setErrors(errs);
     if (errs.length) return;
@@ -173,6 +174,7 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
           accountId: f.accountId,
           cardId: isCredit ? f.cardId : undefined,
           invoiceMonth: isCredit ? f.invoiceMonth : undefined,
+          useExtraLimit: isCredit ? f.useExtraLimit : undefined,
           personId: f.personId,
           notes: f.notes,
           // só altera as baixas se o usuário mudou o status (preserva pagamentos parciais)
@@ -406,6 +408,18 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
                   </option>
                 ))}
               </select>
+            </Field>
+          )}
+          {isCredit && card && ((card.extraLimit ?? 0) > 0 || f.useExtraLimit) && (
+            <Field label="Usar qual limite?" className="full" hint={f.useExtraLimit ? `Entra na fatura sem consumir o limite normal · limite extra do cartão: ${formatBRL(card.extraLimit ?? 0)}` : undefined}>
+              <Segmented
+                value={f.useExtraLimit ? 'extra' : 'normal'}
+                onChange={(v) => set({ useExtraLimit: v === 'extra' })}
+                options={[
+                  { value: 'normal', label: 'Limite normal' },
+                  { value: 'extra', label: 'Limite extra' },
+                ]}
+              />
             </Field>
           )}
           {isCredit && card && (

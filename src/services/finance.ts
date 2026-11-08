@@ -83,6 +83,8 @@ export interface TxEdit {
   paid?: boolean;
   /** Fatura escolhida manualmente (compras no cartão). */
   invoiceMonth?: string;
+  /** Compra no limite extra do cartão. */
+  useExtraLimit?: boolean;
 }
 
 /** Edita um lançamento existente (uma parcela por vez no caso de parcelados). */
@@ -114,9 +116,10 @@ export async function updateTransaction(id: ID, edit: TxEdit, db: FinanceDB = de
       accountId: undefined,
       payments: [],
       invoiceMonth: edit.invoiceMonth || (t.cardId === card.id && t.installment ? t.invoiceMonth : invoiceMonthFor(edit.date, card)),
+      useExtraLimit: edit.useExtraLimit || undefined,
     };
   } else {
-    next = { ...next, cardId: undefined, invoiceMonth: undefined, accountId: edit.accountId || undefined };
+    next = { ...next, cardId: undefined, invoiceMonth: undefined, useExtraLimit: undefined, accountId: edit.accountId || undefined };
     if (t.cardId && edit.paid === undefined) next.payments = [];
     if (edit.paid === false) next.payments = [];
     if (edit.paid === true) next = settle(next, newId, next.payments.length ? today() : edit.date, next.accountId);
@@ -187,14 +190,14 @@ export async function settleTransaction(id: ID, date: ISODate = today(), account
 /** Paga uma conta em aberto com o cartão de crédito (vira compra na fatura). */
 export async function payTransactionWithCard(
   id: ID,
-  opts: { cardId: ID; date: ISODate; invoiceMonth?: string; installments?: number },
+  opts: { cardId: ID; date: ISODate; invoiceMonth?: string; installments?: number; useExtraLimit?: boolean },
   db: FinanceDB = defaultDb,
 ): Promise<Transaction[]> {
   const [t, card] = await Promise.all([db.transactions.get(id), db.cards.get(opts.cardId)]);
   if (!t) throw new Error('Lançamento não encontrado.');
   if (!card) throw new Error('Selecione o cartão de crédito.');
   assertDate(opts.date);
-  const { updated, created } = payWithCard(t, { card, date: opts.date, invoiceMonth: opts.invoiceMonth, installments: opts.installments }, newId);
+  const { updated, created } = payWithCard(t, { card, date: opts.date, invoiceMonth: opts.invoiceMonth, installments: opts.installments, useExtraLimit: opts.useExtraLimit }, newId);
   await db.transaction('rw', db.transactions, async () => {
     if (updated) await db.transactions.put(updated);
     if (created.length) await db.transactions.bulkAdd(created);
@@ -276,6 +279,7 @@ export async function deleteInvoicePayment(id: ID, db: FinanceDB = defaultDb) {
 export async function saveCard(card: Omit<Card, 'id'> & { id?: ID }, db: FinanceDB = defaultDb) {
   if (!card.name.trim()) throw new Error('Informe o nome do cartão.');
   if (card.closingDay < 1 || card.closingDay > 31 || card.dueDay < 1 || card.dueDay > 31) throw new Error('Dias de fechamento e vencimento devem estar entre 1 e 31.');
+  if ((card.extraLimit ?? 0) < 0) throw new Error('O limite extra não pode ser negativo.');
   await db.cards.put({ ...card, id: card.id ?? newId() } as Card);
 }
 

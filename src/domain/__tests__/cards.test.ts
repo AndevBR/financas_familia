@@ -129,4 +129,39 @@ describe('cartões de crédito', () => {
     }
     expect(invoiceChoices(nubank, '2026-11-03', 'lixo').map((c) => c.month)).not.toContain('lixo');
   });
+
+  describe('limite extra', () => {
+    const c2 = card({ id: 'x', limit: 100000, extraLimit: 50000, closingDay: 5, dueDay: 12 });
+
+    it('compra no limite extra entra na fatura mas não consome o limite normal', () => {
+      const normal = buildTransactions({ type: 'despesa', amount: 30000, date: '2026-10-01', paymentMethod: 'credito', cardId: 'x', paid: true }, newId, { description: 'Mercado', card: c2 });
+      const extra = buildTransactions({ type: 'despesa', amount: 20000, date: '2026-10-01', paymentMethod: 'credito', cardId: 'x', paid: true, useExtraLimit: true, installments: 2 }, newId, { description: 'Pix no crédito', card: c2 });
+      expect(extra.every((t) => t.useExtraLimit)).toBe(true);
+      const all = [...normal, ...extra];
+      const u = cardUsage(c2, all, [], '2026-10-01');
+      expect(u).toMatchObject({ used: 30000, available: 70000 });
+      expect(u.extra).toMatchObject({ limit: 50000, used: 20000, available: 30000, usedPercent: 40 });
+      // a fatura tem tudo junto
+      expect(buildInvoice(c2, '2026-10', all, [], '2026-10-01').total).toBe(30000 + 10000);
+    });
+
+    it('pagamento da fatura libera os dois limites na proporção', () => {
+      const all = [
+        tx({ cardId: 'x', invoiceMonth: '2026-10', amount: 30000 }),
+        tx({ cardId: 'x', invoiceMonth: '2026-10', amount: 10000, useExtraLimit: true }),
+      ];
+      const pago = cardUsage(c2, all, [{ id: 'p', cardId: 'x', invoiceMonth: '2026-10', amount: 40000, date: '2026-10-12' }]);
+      expect(pago.used).toBe(0);
+      expect(pago.extra!.used).toBe(0);
+      const metade = cardUsage(c2, all, [{ id: 'p', cardId: 'x', invoiceMonth: '2026-10', amount: 20000, date: '2026-10-12' }]);
+      expect(metade.used).toBe(15000);
+      expect(metade.extra!.used).toBe(5000);
+    });
+
+    it('cartão sem limite extra continua igual', () => {
+      const u = cardUsage(card({ limit: 1000 }), [tx({ cardId: 'c1', invoiceMonth: '2026-10', amount: 400 })], []);
+      expect(u.used).toBe(400);
+      expect(u.extra).toBeUndefined();
+    });
+  });
 });

@@ -127,6 +127,13 @@ describe('lançamentos', () => {
     });
   });
 
+  it('conta paga com o limite extra do cartão', () => {
+    const c = card({ id: 'nu', closingDay: 27, dueDay: 3, extraLimit: 50000 });
+    const { updated } = payWithCard(tx({ id: 'boleto', amount: 20000 }), { card: c, date: '2026-11-08', useExtraLimit: true }, newId);
+    expect(updated).toMatchObject({ cardId: 'nu', useExtraLimit: true });
+    expect(cardPaymentToBill([updated!], updated!).put.useExtraLimit).toBeUndefined();
+  });
+
   describe('desfazer pagamento no cartão', () => {
     const c = card({ id: 'nu', closingDay: 27, dueDay: 3 });
 

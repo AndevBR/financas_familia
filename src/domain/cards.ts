@@ -95,21 +95,47 @@ export interface CardUsage {
   usedPercent: number;
   /** Parcelas futuras já comprometidas (faturas após a atual). */
   futureInstallments: Cents;
+  /** Limite extra (só quando o cartão tem limite extra ou há compras nele). */
+  extra?: { limit: Cents; used: Cents; available: Cents; usedPercent: number };
 }
 
-/** Limite utilizado = tudo que foi comprado e ainda não foi pago (inclui parcelas futuras). */
+/**
+ * Limite utilizado = tudo que foi comprado e ainda não foi pago (inclui parcelas futuras).
+ * Compras no limite extra ficam num saldo separado. O pagamento de cada fatura libera
+ * os dois limites na proporção do que cada um tem naquela fatura.
+ */
 export function cardUsage(card: Card, transactions: Transaction[], invoicePayments: InvoicePayment[], ref: ISODate = today()): CardUsage {
   const cardTx = transactions.filter((t) => t.cardId === card.id);
-  const total = sum(cardTx.map((t) => t.amount));
-  const paid = sum(invoicePayments.filter((p) => p.cardId === card.id).map((p) => p.amount));
-  const used = Math.max(0, total - paid);
+  const payments = invoicePayments.filter((p) => p.cardId === card.id);
+  const months = new Set<string>([...cardTx.map((t) => t.invoiceMonth ?? ''), ...payments.map((p) => p.invoiceMonth)]);
+  let usedNormal = 0;
+  let usedExtra = 0;
+  let leftover = 0; // pagamentos acima do total da fatura (ou de faturas sem compras)
+  for (const m of months) {
+    const items = cardTx.filter((t) => (t.invoiceMonth ?? '') === m);
+    const normal = sum(items.filter((t) => !t.useExtraLimit).map((t) => t.amount));
+    const extra = sum(items.filter((t) => t.useExtraLimit).map((t) => t.amount));
+    const total = normal + extra;
+    const paid = sum(payments.filter((p) => p.invoiceMonth === m).map((p) => p.amount));
+    const applied = Math.min(paid, total);
+    leftover += paid - applied;
+    const paidExtra = total > 0 ? Math.round((applied * extra) / total) : 0;
+    usedNormal += normal - (applied - paidExtra);
+    usedExtra += extra - paidExtra;
+  }
+  usedNormal = Math.max(0, usedNormal - leftover);
   const current = currentInvoiceMonth(card, ref);
   const futureInstallments = sum(cardTx.filter((t) => (t.invoiceMonth ?? '') > current).map((t) => t.amount));
+  const extraLimit = card.extraLimit ?? 0;
   return {
-    used,
-    available: card.limit - used,
-    usedPercent: card.limit > 0 ? (used / card.limit) * 100 : 0,
+    used: usedNormal,
+    available: card.limit - usedNormal,
+    usedPercent: card.limit > 0 ? (usedNormal / card.limit) * 100 : 0,
     futureInstallments,
+    extra:
+      extraLimit > 0 || usedExtra > 0
+        ? { limit: extraLimit, used: usedExtra, available: extraLimit - usedExtra, usedPercent: extraLimit > 0 ? (usedExtra / extraLimit) * 100 : 0 }
+        : undefined,
   };
 }
 

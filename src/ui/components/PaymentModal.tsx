@@ -32,6 +32,7 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
   });
   const [invoiceMonth, setInvoiceMonth] = useState<string | undefined>(undefined);
   const [installments, setInstallments] = useState(1);
+  const [useExtraLimit, setUseExtraLimit] = useState(false);
   const [error, setError] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -47,7 +48,7 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
       if (!isValidISODate(date)) throw new Error('Data inválida. Confira dia, mês e ano.');
       setSaving(true);
       if (card) {
-        await payTransactionWithCard(tx.id, { cardId: card.id, date, invoiceMonth, installments });
+        await payTransactionWithCard(tx.id, { cardId: card.id, date, invoiceMonth, installments, useExtraLimit: (card.extraLimit ?? 0) > 0 && useExtraLimit });
         if (file) await addAttachment(file, { transactionId: tx.id });
         const month = invoiceMonth || automaticInvoice(card, date).month;
         toast(`Pago no ${card.name} · fatura de ${formatMonth(month)}`);
@@ -146,6 +147,18 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
                   ))}
                 </select>
               </Field>
+              {(card.extraLimit ?? 0) > 0 && (
+                <Field label="Usar qual limite?" className="full" hint={useExtraLimit ? `Entra na fatura sem consumir o limite normal (limite extra: ${formatBRL(card.extraLimit ?? 0)})` : undefined}>
+              <Segmented
+                value={useExtraLimit ? 'extra' : 'normal'}
+                onChange={(v) => setUseExtraLimit(v === 'extra')}
+                options={[
+                  { value: 'normal', label: 'Limite normal' },
+                  { value: 'extra', label: 'Limite extra' },
+                ]}
+              />
+            </Field>
+              )}
               <Field label="Fatura" className="full">
                 <select className="input" value={invoiceMonth ?? ''} onChange={(e) => setInvoiceMonth(e.target.value || undefined)} aria-label="Fatura">
                   <option value="">
