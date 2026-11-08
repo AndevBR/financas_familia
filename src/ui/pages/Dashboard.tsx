@@ -236,10 +236,8 @@ export function Dashboard({ data, lookups }: { data: FinanceData; lookups: Looku
                         <Progress value={u.usedPercent} tone={u.usedPercent >= 100 ? 'critical' : u.usedPercent >= 80 ? 'warning' : undefined} label={`Limite ${c.name}`} />
                         {u.extra && (
                           <div className="row between tiny muted" style={{ marginTop: 3 }}>
-                            <span>limite extra</span>
-                            <span className="num">
-                              {formatBRL(u.extra.used)} de {formatBRL(u.extra.limit)}
-                            </span>
+                            <span>limite extra · usado {formatBRL(u.extra.used)}</span>
+                            <span className="num">disponível {formatBRL(u.extra.available)}</span>
                           </div>
                         )}
                       </div>

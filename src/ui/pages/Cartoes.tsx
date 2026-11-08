@@ -284,8 +284,9 @@ export function Cartoes({ data, lookups }: { data: FinanceData; lookups: Lookups
                   </div>
                   <Progress value={u.usedPercent} label={`Limite usado ${formatPercent(u.usedPercent)}`} />
                   {u.extra && (
-                    <div className="tiny" style={{ marginTop: 6, opacity: 0.9 }}>
-                      Limite extra: usado {formatBRL(u.extra.used)} de {formatBRL(u.extra.limit)}
+                    <div className="row between tiny" style={{ marginTop: 6, opacity: 0.9, flexWrap: 'nowrap' }}>
+                      <span>Extra: usado {formatBRL(u.extra.used)}</span>
+                      <span>Disponível {formatBRL(u.extra.available)}</span>
                     </div>
                   )}
                 </div>
