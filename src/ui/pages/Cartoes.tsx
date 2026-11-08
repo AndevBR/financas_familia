@@ -11,7 +11,7 @@ import { TxTable } from '../components/TxTable';
 import { CardSpending } from '../components/CardSpending';
 import { AttachmentButton, AttachmentPicker } from '../components/Attachments';
 import { addAttachment } from '../../services/attachments';
-import { Badge, EmptyState, Field, Modal, MoneyInput, Progress } from '../components/ui';
+import { Badge, EmptyState, Field, Modal, MoneyInput, Progress, Segmented } from '../components/ui';
 import type { FinanceData, Lookups } from '../hooks/useFinance';
 
 const CARD_COLORS = ['#0f766e', '#6d28d9', '#1d4ed8', '#be123c', '#111827', '#c2410c', '#15803d'];
@@ -101,12 +101,15 @@ function PayInvoiceModal({ data, card, invoice, onClose }: { data: FinanceData; 
   const [accountId, setAccountId] = useState(card.defaultAccountId ?? data.accounts.find((a) => !a.archived)?.id ?? '');
   const [error, setError] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [asInterest, setAsInterest] = useState(true);
+  const extra = (amount ?? 0) - invoice.open;
   const save = async () => {
     try {
       if (!amount || amount <= 0) throw new Error('Informe um valor maior que zero.');
-      const payment = await payInvoice({ cardId: card.id, invoiceMonth: invoice.month, amount, date, accountId: accountId || undefined });
+      const interest = extra > 0 && asInterest && invoice.open > 0 ? { open: invoice.open, cardName: card.name } : undefined;
+      const payment = await payInvoice({ cardId: card.id, invoiceMonth: invoice.month, amount, date, accountId: accountId || undefined }, undefined, interest);
       if (file) await addAttachment(file, { invoicePaymentId: payment.id });
-      toast(amount < invoice.open ? 'Pagamento parcial da fatura registrado' : 'Fatura paga');
+      toast(amount < invoice.open ? 'Pagamento parcial da fatura registrado' : interest ? `Fatura paga · ${formatBRL(extra)} lançado como juros/multa` : 'Fatura paga');
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -135,6 +138,26 @@ function PayInvoiceModal({ data, card, invoice, onClose }: { data: FinanceData; 
           <Field label="Valor" hint={`Em aberto: ${formatBRL(invoice.open)}`} className="full">
             <MoneyInput big autoFocus value={amount} onChange={setAmount} />
           </Field>
+          {extra > 0 && invoice.open > 0 && (
+            <div className="full extra-box">
+              <div className="small">
+                Você pagou <b className="num">{formatBRL(extra)}</b> a mais que o valor em aberto da fatura.
+              </div>
+              <Segmented
+                value={asInterest ? 'juros' : 'credito'}
+                onChange={(v) => setAsInterest(v === 'juros')}
+                options={[
+                  { value: 'juros', label: 'Juros/multa (despesa separada)' },
+                  { value: 'credito', label: 'Pagamento a mais (fica de crédito)' },
+                ]}
+              />
+              <div className="tiny muted">
+                {asInterest
+                  ? `A fatura fica paga com ${formatBRL(invoice.open)} e ${formatBRL(extra)} entra em Financeiro › Juros.`
+                  : 'O valor inteiro fica registrado como pagamento desta fatura.'}
+              </div>
+            </div>
+          )}
           <Field label="Data do pagamento">
             <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>

@@ -6,8 +6,11 @@ import { addMonthKey, isValidISODate, monthEnd, today } from '../domain/dates';
 import { seedCategories } from '../domain/defaults';
 import { generateRecurrence, resumeRecurrence } from '../domain/recurrence';
 import {
-  addPayment,
   payWithCard,
+  payWithExtra,
+  interestClassification,
+  buildInterestTx,
+  type ExtraMode,
   cardPaymentToBill,
   applyAmountChange,
   buildTransactions,
@@ -141,6 +144,7 @@ export async function deleteTransaction(id: ID, opts: { wholeGroup?: boolean } =
     return ids.length;
   }
   await db.transaction('rw', db.transactions, db.attachments, async () => {
+    await db.transactions.bulkDelete(await linkedInterestIds(db, { transactionId: id }));
     await db.transactions.delete(id);
     await db.attachments.where('transactionId').equals(id).delete();
   });
@@ -148,12 +152,28 @@ export async function deleteTransaction(id: ID, opts: { wholeGroup?: boolean } =
 }
 
 /** Registra uma baixa e devolve o id do pagamento (para vincular o comprovante). */
-export async function registerPayment(id: ID, amount: Cents, date: ISODate, accountId: ID | undefined, db: FinanceDB = defaultDb): Promise<ID> {
+/**
+ * Registra uma baixa e devolve o id do pagamento (para vincular o comprovante).
+ * Pagamento maior que o valor em aberto: a diferença vira juros/multa ou é somada à conta (`extraMode`).
+ */
+export async function registerPayment(
+  id: ID,
+  amount: Cents,
+  date: ISODate,
+  accountId: ID | undefined,
+  db: FinanceDB = defaultDb,
+  extraMode: ExtraMode = 'juros',
+): Promise<ID> {
   const t = await db.transactions.get(id);
   if (!t) throw new Error('Lançamento não encontrado.');
   assertDate(date);
   const paymentId = newId();
-  await db.transactions.put(addPayment(t, { id: paymentId, amount, date, accountId }));
+  const cls = interestClassification(await db.categories.toArray(), await db.subcategories.toArray());
+  const { updated, interest } = payWithExtra(t, { id: paymentId, amount, date, accountId }, extraMode, newId, cls);
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.put(updated);
+    if (interest) await db.transactions.add(interest);
+  });
   return paymentId;
 }
 
@@ -197,25 +217,59 @@ export async function moveCardPurchaseToBill(id: ID, db: FinanceDB = defaultDb):
   });
 }
 
+/** Juros/multa lançados ao pagar esta conta ou esta fatura. */
+async function linkedInterestIds(db: FinanceDB, link: { transactionId?: ID; invoicePaymentId?: ID }): Promise<ID[]> {
+  return (await db.transactions
+    .filter((x) => !!x.interestOf && (link.transactionId ? x.interestOf.transactionId === link.transactionId : x.interestOf.invoicePaymentId === link.invoicePaymentId))
+    .primaryKeys()) as ID[];
+}
+
+/** Desfaz as baixas; juros/multa lançados junto com o pagamento também são removidos. */
 export async function reopenTransaction(id: ID, db: FinanceDB = defaultDb) {
-  const t = await db.transactions.get(id);
-  if (t) await db.transactions.put(reopen(t));
+  await db.transaction('rw', db.transactions, db.attachments, async () => {
+    const t = await db.transactions.get(id);
+    if (!t) return;
+    await db.transactions.put(reopen(t));
+    const ids = await linkedInterestIds(db, { transactionId: id });
+    await db.transactions.bulkDelete(ids);
+    await db.attachments.where('transactionId').anyOf(ids).delete();
+  });
 }
 
 // ---------------------------------------------------------------- cartões
 
-export async function payInvoice(p: Omit<InvoicePayment, 'id'>, db: FinanceDB = defaultDb): Promise<InvoicePayment> {
+/**
+ * Pagamento de fatura. Se `interest` vier (valor pago acima do aberto, com juros),
+ * a fatura recebe só o valor em aberto e a diferença vira despesa de juros/multa.
+ */
+export async function payInvoice(
+  p: Omit<InvoicePayment, 'id'>,
+  db: FinanceDB = defaultDb,
+  interest?: { open: Cents; cardName: string },
+): Promise<InvoicePayment> {
   if (!(p.amount > 0)) throw new Error('Informe um valor maior que zero.');
   assertDate(p.date);
-  const payment = { ...p, id: newId() };
-  await db.invoicePayments.add(payment);
+  const extra = interest ? p.amount - interest.open : 0;
+  const payment = { ...p, amount: extra > 0 ? interest!.open : p.amount, id: newId() };
+  await db.transaction('rw', [db.invoicePayments, db.transactions, db.categories, db.subcategories], async () => {
+    if (payment.amount > 0) await db.invoicePayments.add(payment);
+    if (extra > 0) {
+      const cls = interestClassification(await db.categories.toArray(), await db.subcategories.toArray());
+      const desc = `Fatura ${interest!.cardName} ${p.invoiceMonth.split('-').reverse().join('/')}`;
+      await db.transactions.add(
+        buildInterestTx({ description: desc, amount: extra, date: p.date, accountId: p.accountId, paymentMethod: 'boleto' }, { invoicePaymentId: payment.id }, cls, newId),
+      );
+    }
+  });
   return payment;
 }
 
 export async function deleteInvoicePayment(id: ID, db: FinanceDB = defaultDb) {
-  await db.transaction('rw', db.invoicePayments, db.attachments, async () => {
+  await db.transaction('rw', db.invoicePayments, db.attachments, db.transactions, async () => {
     await db.invoicePayments.delete(id);
     await db.attachments.where('invoicePaymentId').equals(id).delete();
+    // juros/multa pagos junto com esta fatura
+    await db.transactions.bulkDelete(await linkedInterestIds(db, { invoicePaymentId: id }));
   });
 }
 

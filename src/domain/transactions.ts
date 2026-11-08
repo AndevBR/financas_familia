@@ -179,7 +179,8 @@ export function settle(t: Transaction, newId: IdFactory, date: ISODate, accountI
 
 /** Desfaz todas as baixas, voltando o lançamento para "em aberto". */
 export function reopen(t: Transaction): Transaction {
-  return { ...t, payments: [] };
+  // se a conta tinha recebido um valor a mais somado, volta ao valor original
+  return { ...t, payments: [], amount: t.amount - (t.extraAdded ?? 0), extraAdded: undefined };
 }
 
 /**
@@ -296,4 +297,85 @@ export function cardPaymentToBill(all: Transaction[], tx: Transaction): { put: T
     },
     deleteIds: group.map((x) => x.id).filter((id) => id !== billId),
   };
+}
+
+// ---------------------------------------------------------------- pagamento maior que o valor (juros/multa)
+
+/** O que fazer quando o pagamento é maior que o valor em aberto. */
+export type ExtraMode = 'juros' | 'somar';
+
+export interface Classification {
+  categoryId?: ID;
+  subcategoryId?: ID;
+}
+
+const plain = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/** Classificação padrão dos juros: Financeiro › Juros (se existirem). */
+export function interestClassification(categories: { id: ID; name: string; type: TxType }[], subcategories: { id: ID; name: string; categoryId: ID }[]): Classification {
+  const cat = categories.find((c) => c.type === 'despesa' && plain(c.name) === 'financeiro');
+  if (!cat) return {};
+  const sub = subcategories.find((s) => s.categoryId === cat.id && plain(s.name) === 'juros');
+  return { categoryId: cat.id, subcategoryId: sub?.id };
+}
+
+/** Lançamento de juros/multa já pago, ligado à conta ou à fatura que o originou. */
+export function buildInterestTx(
+  base: { description: string; amount: Cents; date: ISODate; accountId?: ID; paymentMethod: PaymentMethod; personId?: ID; dueDate?: ISODate },
+  link: { transactionId?: ID; invoicePaymentId?: ID },
+  cls: Classification,
+  newId: IdFactory,
+  now = new Date().toISOString(),
+): Transaction {
+  return {
+    id: newId(),
+    type: 'despesa',
+    description: `Juros/multa · ${base.description}`,
+    amount: base.amount,
+    date: base.date,
+    categoryId: cls.categoryId,
+    subcategoryId: cls.subcategoryId,
+    paymentMethod: base.paymentMethod === 'credito' ? 'outro' : base.paymentMethod,
+    accountId: base.accountId,
+    personId: base.personId,
+    payments: [{ id: newId(), date: base.date, amount: base.amount, accountId: base.accountId }],
+    notes: `Pago junto com "${base.description}"${base.dueDate ? ` (vencimento ${base.dueDate.split('-').reverse().join('/')})` : ''}`,
+    interestOf: link,
+    createdAt: now,
+  };
+}
+
+/**
+ * Registra um pagamento que pode ser maior que o valor em aberto.
+ * - até o valor em aberto: baixa normal (total ou parcial);
+ * - acima, modo "juros": quita a conta e lança a diferença como juros/multa (despesa separada);
+ * - acima, modo "somar": a conta passa a valer o total pago.
+ */
+export function payWithExtra(
+  t: Transaction,
+  payment: Payment,
+  mode: ExtraMode,
+  newId: IdFactory,
+  cls: Classification = {},
+): { updated: Transaction; interest?: Transaction } {
+  const open = openAmount(t);
+  const extra = payment.amount - open;
+  if (extra <= 0) return { updated: addPayment(t, payment) };
+  if (isCardTx(t)) throw new Error('Compras no cartão são quitadas pelo pagamento da fatura.');
+  if (mode === 'somar') {
+    return { updated: { ...t, amount: t.amount + extra, extraAdded: (t.extraAdded ?? 0) + extra, estimated: undefined, payments: [...t.payments, payment] } };
+  }
+  const updated = addPayment({ ...t, estimated: undefined }, { ...payment, amount: open });
+  const interest = buildInterestTx(
+    { description: t.description, amount: extra, date: payment.date, accountId: payment.accountId, paymentMethod: t.paymentMethod, personId: t.personId, dueDate: t.date },
+    { transactionId: t.id },
+    cls,
+    newId,
+  );
+  return { updated, interest };
 }

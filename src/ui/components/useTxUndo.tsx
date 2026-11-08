@@ -21,6 +21,10 @@ export function useTxUndo(data: FinanceData) {
         ? `${formatBRL(amount)} ${income ? 'sai de novo da' : 'volta para a'} conta ${accountName(acc) ?? '(conta removida)'}`
         : `${formatBRL(amount)} foi registrado sem conta informada, então nenhum saldo muda`,
     );
+    const interest = data.transactions.filter((x) => x.interestOf?.transactionId === t.id);
+    const interestTotal = sum(interest.map((x) => x.amount));
+    if (interestTotal > 0) lines.push(`os juros/multa de ${formatBRL(interestTotal)} lançados junto também são removidos (e o dinheiro volta para a conta)`);
+    if (t.extraAdded) lines.push(`o valor volta a ser ${formatBRL(t.amount - t.extraAdded)} (sem os ${formatBRL(t.extraAdded)} somados no pagamento)`);
     const ok = await confirm({
       title: income ? 'Desfazer recebimento' : 'Desfazer baixa',
       message: (

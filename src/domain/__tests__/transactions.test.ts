@@ -1,4 +1,4 @@
-import { cardPaymentToBill, payWithCard, addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
+import { interestClassification, payWithExtra, cardPaymentToBill, payWithCard, addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
 describe('lançamentos', () => {
@@ -176,6 +176,54 @@ describe('lançamentos', () => {
 
     it('recusa lançamento que não está no cartão', () => {
       expect(() => cardPaymentToBill([], tx())).toThrow();
+    });
+  });
+
+  describe('pagamento maior que o valor (juros por atraso)', () => {
+    const cls = { categoryId: 'fin', subcategoryId: 'juros' };
+    const conta = () => tx({ id: 'luz', description: 'Conta de luz', amount: 33819, date: '2026-11-05', paymentMethod: 'boleto', categoryId: 'casa' });
+
+    it('modo juros: quita a conta e lança a diferença em Financeiro › Juros', () => {
+      const { updated, interest } = payWithExtra(conta(), { id: 'p', date: '2026-11-12', amount: 35000, accountId: 'a1' }, 'juros', newId, cls);
+      expect(txStatus(updated)).toBe('pago');
+      expect(updated.amount).toBe(33819); // a conta continua com o valor original e a categoria dela
+      expect(updated.payments[0].amount).toBe(33819);
+      expect(interest).toMatchObject({ type: 'despesa', amount: 1181, date: '2026-11-12', categoryId: 'fin', subcategoryId: 'juros', accountId: 'a1', interestOf: { transactionId: 'luz' } });
+      expect(interest!.description).toBe('Juros/multa · Conta de luz');
+      expect(txStatus(interest!)).toBe('pago');
+      expect(updated.payments[0].amount + interest!.payments[0].amount).toBe(35000); // saiu da conta exatamente o que foi pago
+    });
+
+    it('modo somar: a conta passa a valer o total pago, e reabrir volta ao valor original', () => {
+      const { updated, interest } = payWithExtra(conta(), { id: 'p', date: '2026-11-12', amount: 35000 }, 'somar', newId);
+      expect(interest).toBeUndefined();
+      expect(updated).toMatchObject({ amount: 35000, extraAdded: 1181 });
+      expect(txStatus(updated)).toBe('pago');
+      const back = reopen(updated);
+      expect(back.amount).toBe(33819);
+      expect(back.extraAdded).toBeUndefined();
+      expect(txStatus(back)).toBe('aberto');
+    });
+
+    it('valor igual ou menor continua sendo baixa normal/parcial', () => {
+      expect(payWithExtra(conta(), { id: 'p', date: '2026-11-12', amount: 33819 }, 'juros', newId).interest).toBeUndefined();
+      const parcial = payWithExtra(conta(), { id: 'p', date: '2026-11-12', amount: 10000 }, 'juros', newId);
+      expect(txStatus(parcial.updated)).toBe('parcial');
+      expect(parcial.interest).toBeUndefined();
+    });
+
+    it('juros sobre o restante de uma conta já parcialmente paga', () => {
+      const c = { ...conta(), payments: [{ id: 'p0', date: '2026-11-01', amount: 20000 }] };
+      const { updated, interest } = payWithExtra(c, { id: 'p', date: '2026-11-12', amount: 15000 }, 'juros', newId, cls);
+      expect(txStatus(updated)).toBe('pago');
+      expect(interest!.amount).toBe(15000 - 13819);
+    });
+
+    it('encontra Financeiro › Juros ignorando acentos e maiúsculas', () => {
+      const cats = [{ id: 'f', name: 'FINANCEIRO', type: 'despesa' as const }, { id: 'r', name: 'Financeiro', type: 'receita' as const }];
+      const subs = [{ id: 'j', name: 'Juros', categoryId: 'f' }, { id: 't', name: 'Tarifas', categoryId: 'f' }];
+      expect(interestClassification(cats, subs)).toEqual({ categoryId: 'f', subcategoryId: 'j' });
+      expect(interestClassification([], [])).toEqual({});
     });
   });
 });

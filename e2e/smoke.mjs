@@ -229,6 +229,33 @@ await page.getByRole('tab', { name: /Em aberto/ }).click();
 await page.locator('tr', { hasText: 'Mensalidade escola' }).waitFor();
 step('desfazer baixa devolve o dinheiro para a conta');
 
+// pagamento com juros por atraso: valor maior que o lançado
+const antesJuros = await saldo();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByRole('button', { name: 'Pagar' }).click();
+await modal().getByLabel('Pagar com').selectOption({ label: 'Conta principal' });
+await modal().getByLabel('Valor do pagamento').fill('');
+await modal().getByLabel('Valor do pagamento').pressSequentially('350,00');
+await modal().getByText('a mais que o valor em aberto').waitFor();
+await modal().getByRole('button', { name: 'Confirmar' }).click();
+await saved('lançado como juros/multa');
+if ((await saldo()) !== antesJuros - 35000) throw new Error('Pagamento com juros não saiu inteiro da conta');
+const juros = await page.evaluate(async () => {
+  const t = await window.financeDb.transactions.filter((x) => !!x.interestOf).first();
+  const cat = t && (await window.financeDb.categories.get(t.categoryId));
+  return t && { amount: t.amount, cat: cat?.name };
+});
+if (!juros || juros.amount !== 1181 || juros.cat !== 'Financeiro') throw new Error('Juros não lançados corretamente: ' + JSON.stringify(juros));
+await page.getByRole('tab', { name: 'Pagas' }).click();
+await page.locator('tr').filter({ hasText: 'Mensalidade escola', hasNotText: 'Juros' }).getByLabel('Desfazer baixa').click();
+await modal().getByText('juros/multa de R$ 11,81').waitFor();
+await modal().getByRole('button', { name: 'Desfazer baixa' }).click();
+await page.locator('.toast', { hasText: 'Em aberto de novo' }).last().waitFor();
+await page.locator('.modal').waitFor({ state: 'detached' });
+if ((await saldo()) !== antesJuros) throw new Error('Desfazer pagamento com juros não devolveu o dinheiro');
+if (await page.evaluate(() => window.financeDb.transactions.filter((x) => !!x.interestOf).count())) throw new Error('Juros não foram removidos ao desfazer');
+await page.getByRole('tab', { name: /Em aberto/ }).click();
+step('pagamento maior com juros/multa e desfazer');
+
 // lançamento escolhendo o cartão direto em "Pagar com"
 await page.keyboard.press('n');
 await modal().getByLabel('Valor', { exact: true }).fill('59,90');
@@ -265,6 +292,16 @@ await modal().getByLabel('Arquivo do comprovante').setInputFiles(pdfPath);
 await modal().getByRole('button', { name: 'Confirmar pagamento' }).click();
 await saved('Pagamento parcial da fatura registrado');
 await page.getByLabel('Ver comprovantes (1)').first().waitFor();
+// pagar o restante da fatura com juros
+await page.getByRole('button', { name: 'Pagar fatura' }).click();
+const abertoFatura = await modal().locator('input.money').inputValue();
+await modal().locator('input.money').fill('');
+await modal().locator('input.money').pressSequentially('9999,00');
+await modal().getByText('a mais que o valor em aberto da fatura').waitFor();
+await modal().getByRole('button', { name: 'Confirmar pagamento' }).click();
+await saved('lançado como juros/multa');
+await expectText('Paga');
+step(`fatura paga com juros (em aberto era ${abertoFatura})`);
 await expectText('Parcelamentos em andamento');
 await expectText('0/3 parcelas');
 step('cartão e compra parcelada');

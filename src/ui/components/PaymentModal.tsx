@@ -5,10 +5,11 @@ import { formatDateBR, formatMonth, isValidISODate, today } from '../../domain/d
 import { formatBRL, splitAmount } from '../../domain/money';
 import { openAmount, paidAmount } from '../../domain/transactions';
 import type { Transaction } from '../../domain/types';
+import type { ExtraMode } from '../../domain/transactions';
 import { payTransactionWithCard, registerPayment } from '../../services/finance';
 import { useApp } from '../AppContext';
 import type { FinanceData } from '../hooks/useFinance';
-import { Field, Modal, MoneyInput } from './ui';
+import { Field, Modal, MoneyInput, Segmented } from './ui';
 import { AttachmentPicker } from './Attachments';
 import { addAttachment } from '../../services/attachments';
 
@@ -34,6 +35,9 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
   const [error, setError] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  // pagou a mais (juros/multa por atraso) ou recebeu a mais
+  const [extraMode, setExtraMode] = useState<ExtraMode>(isIncome ? 'somar' : 'juros');
+  const extra = (amount ?? 0) - open;
 
   const card = payWith.startsWith('card:') ? cards.find((c) => `card:${c.id}` === payWith) : undefined;
   const accountId = payWith.startsWith('acc:') ? payWith.slice(4) : undefined;
@@ -49,10 +53,17 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
         toast(`Pago no ${card.name} · fatura de ${formatMonth(month)}`);
       } else {
         if (!amount || amount <= 0) throw new Error('Informe um valor maior que zero.');
-        if (amount > open) throw new Error(`O valor não pode ser maior que o saldo em aberto (${formatBRL(open)}).`);
-        const paymentId = await registerPayment(tx.id, amount, date, accountId);
+        const paymentId = await registerPayment(tx.id, amount, date, accountId, undefined, extraMode);
         if (file) await addAttachment(file, { transactionId: tx.id, paymentId });
-        toast(amount < open ? 'Pagamento parcial registrado' : isIncome ? 'Recebimento registrado' : 'Pagamento registrado');
+        toast(
+          amount < open
+            ? 'Pagamento parcial registrado'
+            : extra > 0 && extraMode === 'juros'
+              ? `Pago · ${formatBRL(extra)} lançado como juros/multa`
+              : isIncome
+                ? 'Recebimento registrado'
+                : 'Pagamento registrado',
+        );
       }
       onClose();
     } catch (e) {
@@ -153,9 +164,37 @@ export function PaymentModal({ tx, data, onClose }: { tx: Transaction; data: Fin
             </>
           ) : (
             <>
-              <Field label="Valor" hint={`Em aberto: ${formatBRL(open)} — informe um valor menor para pagamento parcial`} className="full">
+              <Field
+                label="Valor"
+                hint={`Em aberto: ${formatBRL(open)} — menor = pagamento parcial; maior = ${isIncome ? 'recebido a mais' : 'com juros/multa'}`}
+                className="full"
+              >
                 <MoneyInput big autoFocus value={amount} onChange={setAmount} ariaLabel="Valor do pagamento" />
               </Field>
+              {extra > 0 && (
+                <div className="full extra-box">
+                  <div className="small">
+                    {isIncome ? 'Você recebeu' : 'Você pagou'} <b className="num">{formatBRL(extra)}</b> a mais que o valor em aberto. O que fazer com a diferença?
+                  </div>
+                  {!isIncome && (
+                    <Segmented
+                      value={extraMode}
+                      onChange={setExtraMode}
+                      options={[
+                        { value: 'juros', label: 'Juros/multa (despesa separada)' },
+                        { value: 'somar', label: 'Somar ao valor da conta' },
+                      ]}
+                    />
+                  )}
+                  <div className="tiny muted">
+                    {isIncome
+                      ? `A receita passa a valer ${formatBRL(tx.amount + extra)}.`
+                      : extraMode === 'juros'
+                      ? `A conta fica paga com ${formatBRL(open)} e ${formatBRL(extra)} entra em Financeiro › Juros, para você acompanhar quanto paga de juros.`
+                        : `A conta passa a valer ${formatBRL(tx.amount + extra)}, na mesma categoria.`}
+                  </div>
+                </div>
+              )}
               <Field label={isIncome ? 'Data do recebimento' : 'Data do pagamento'} className="full">
                 <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>

@@ -330,3 +330,6 @@ p.capitalize, span.capitalize { display: inline-block; }
 .attach-drop:hover { border-color: var(--brand); color: var(--text); }
 .attach-preview { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
 .attach-preview img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 6px; align-self: center; }
+
+.extra-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent); }
+.extra-box .segmented { align-self: flex-start; flex-wrap: wrap; }

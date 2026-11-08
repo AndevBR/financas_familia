@@ -124,6 +124,10 @@ export interface Transaction {
   installment?: Installment;
   /** Conta a pagar que foi paga com o cartão: guarda como ela era, para poder desfazer. */
   billOrigin?: BillOrigin;
+  /** Lançamento de juros/multa gerado ao pagar outra conta (ou fatura) com valor maior. */
+  interestOf?: { transactionId?: ID; invoicePaymentId?: ID };
+  /** Valor somado à conta por ter sido paga/recebida a mais (desfeito ao reabrir). */
+  extraAdded?: Cents;
   createdAt: string;
 }
 

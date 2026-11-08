@@ -6,6 +6,8 @@ import {
   ensureSeed,
   payInvoice,
   payTransactionWithCard,
+  deleteInvoicePayment,
+  reopenTransaction,
   moveCardPurchaseToBill,
   registerPayment,
   saveCard,
@@ -142,6 +144,41 @@ describe('serviços com IndexedDB', () => {
     const s = monthSummary(await loadData(), '2026-11', '2026-11-08');
     expect(s.toPay).toBe(33819);
     expect(monthSummary(await loadData(), '2026-12', '2026-11-08').toPay).toBe(0);
+  });
+
+  it('pagamento com juros: despesa extra em Financeiro › Juros, e desfazer remove tudo', async () => {
+    const acc = (await db.accounts.toArray())[0];
+    const [conta] = await saveQuickEntry({ type: 'despesa', amount: 33819, date: '2026-11-05', paymentMethod: 'boleto', paid: false, description: 'Conta de luz' }, db);
+    await registerPayment(conta.id, 35000, '2026-11-12', acc.id, db, 'juros');
+    const txs = await db.transactions.toArray();
+    expect(txs).toHaveLength(2);
+    const juros = txs.find((t) => t.interestOf)!;
+    const fin = (await db.categories.toArray()).find((c) => c.name === 'Financeiro')!;
+    expect(juros).toMatchObject({ amount: 1181, categoryId: fin.id });
+    expect((await db.subcategories.get(juros.subcategoryId!))!.name).toBe('Juros');
+    let s = monthSummary(await loadData(), '2026-11', '2026-11-15');
+    expect(s.expenses).toBe(35000);
+    expect(s.available).toBe(-35000);
+    expect(s.toPay).toBe(0);
+    await reopenTransaction(conta.id, db);
+    expect(await db.transactions.count()).toBe(1);
+    s = monthSummary(await loadData(), '2026-11', '2026-11-15');
+    expect(s.available).toBe(0);
+    expect(s.toPay).toBe(33819);
+  });
+
+  it('fatura paga com juros: fatura quitada e juros como despesa separada', async () => {
+    const acc = (await db.accounts.toArray())[0];
+    await saveCard({ name: 'Visa', limit: 500000, closingDay: 5, dueDay: 12, color: '#000' }, db);
+    const card = (await db.cards.toArray())[0];
+    await saveQuickEntry({ type: 'despesa', amount: 100000, date: '2026-10-01', paymentMethod: 'credito', cardId: card.id, paid: true }, db);
+    const pay = await payInvoice({ cardId: card.id, invoiceMonth: '2026-10', amount: 105000, date: '2026-10-20', accountId: acc.id }, db, { open: 100000, cardName: 'Visa' });
+    expect(pay.amount).toBe(100000);
+    const juros = (await db.transactions.toArray()).find((t) => t.interestOf);
+    expect(juros).toMatchObject({ amount: 5000, interestOf: { invoicePaymentId: pay.id }, accountId: acc.id });
+    expect(monthSummary(await loadData(), '2026-10', '2026-10-25').available).toBe(-105000);
+    await deleteInvoicePayment(pay.id, db);
+    expect((await db.transactions.toArray()).some((t) => t.interestOf)).toBe(false);
   });
 
   it('transferências validam contas', async () => {

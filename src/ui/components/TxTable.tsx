@@ -163,7 +163,7 @@ export function TxTable({
                       </button>
                     </>
                   )}
-                  {!isCardTx(t) && st === 'pago' && showOpen && (
+                  {!isCardTx(t) && st === 'pago' && showOpen && !t.interestOf && (
                     <button className="btn ghost sm icon" onClick={() => undoPayment(t)} title="Desfazer baixa" aria-label="Desfazer baixa">
                       <RotateCcw size={15} />
                     </button>
