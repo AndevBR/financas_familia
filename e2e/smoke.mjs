@@ -195,6 +195,40 @@ const escola = await page.evaluate(() => window.financeDb.transactions.filter((t
 if (escola.length !== 2 || escola.some((t) => !t.cardId) || escola.reduce((a, t) => a + t.amount, 0) !== 33819) throw new Error('Conta não foi para o cartão corretamente');
 step('conta a pagar paga com cartão de crédito (2x)');
 
+// desfazer o pagamento no cartão: a conta volta inteira para "Em aberto"
+await page.getByRole('tab', { name: 'Pagas' }).click();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByLabel('Desfazer pagamento no cartão').click();
+await modal().getByText('saem do cartão').waitFor();
+await modal().getByRole('button', { name: 'Desfazer pagamento' }).click();
+await saved('Voltou para Contas a pagar');
+await page.getByRole('tab', { name: /Em aberto/ }).click();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByText('R$ 338,19').first().waitFor();
+const voltou = await page.evaluate(() => window.financeDb.transactions.filter((t) => t.description.startsWith('Mensalidade escola')).toArray());
+if (voltou.length !== 1 || voltou[0].cardId || voltou[0].amount !== 33819) throw new Error('Pagamento no cartão não foi desfeito corretamente');
+step('desfazer pagamento no cartão');
+
+// pagar pela conta e desfazer a baixa: o dinheiro volta para a conta
+const saldo = () => page.evaluate(async () => {
+  const acc = (await window.financeDb.accounts.toArray()).find((a) => a.name === 'Conta principal');
+  const txs = await window.financeDb.transactions.toArray();
+  return txs.flatMap((t) => t.payments.filter((p) => p.accountId === acc.id).map((p) => (t.type === 'receita' ? p.amount : -p.amount))).reduce((a, b) => a + b, 0);
+});
+const antes = await saldo();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByRole('button', { name: 'Pagar' }).click();
+await modal().getByLabel('Pagar com').selectOption({ label: 'Conta principal' });
+await modal().getByRole('button', { name: 'Confirmar' }).click();
+await saved('Pagamento registrado');
+if ((await saldo()) !== antes - 33819) throw new Error('Pagamento não saiu da conta');
+await page.getByRole('tab', { name: 'Pagas' }).click();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).getByLabel('Desfazer baixa').click();
+await modal().getByText('volta para a conta Conta principal').waitFor();
+await modal().getByRole('button', { name: 'Desfazer baixa' }).click();
+await page.locator('.toast', { hasText: 'voltou para Conta principal' }).waitFor();
+if ((await saldo()) !== antes) throw new Error('Dinheiro não voltou para a conta ao desfazer a baixa');
+await page.getByRole('tab', { name: /Em aberto/ }).click();
+await page.locator('tr', { hasText: 'Mensalidade escola' }).waitFor();
+step('desfazer baixa devolve o dinheiro para a conta');
+
 // lançamento escolhendo o cartão direto em "Pagar com"
 await page.keyboard.press('n');
 await modal().getByLabel('Valor', { exact: true }).fill('59,90');

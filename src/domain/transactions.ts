@@ -1,6 +1,6 @@
 import { addMonths, diffDays, today } from './dates';
 import { splitAmount, sum } from './money';
-import type { Card, Cents, ID, ISODate, MonthKey, Payment, PaymentMethod, Transaction, TxStatus, TxType } from './types';
+import type { BillOrigin, Card, Cents, ID, ISODate, MonthKey, Payment, PaymentMethod, Transaction, TxStatus, TxType } from './types';
 import { invoiceMonthFor } from './cards';
 
 export type IdFactory = () => ID;
@@ -235,10 +235,65 @@ export function payWithCard(t: Transaction, opts: PayWithCardOptions, newId: IdF
     newId,
     { card: opts.card, description, now: t.createdAt },
   );
+  const billOrigin: BillOrigin = {
+    billId: t.id,
+    amount: t.amount,
+    date: t.date,
+    paymentMethod: t.paymentMethod,
+    accountId: t.accountId,
+    description: t.description,
+    estimated: t.estimated,
+  };
+  const withOrigin = (x: Transaction): Transaction => ({ ...x, billOrigin });
   if (t.payments.length === 0) {
     // reaproveita o id: comprovantes e vínculos continuam apontando para o mesmo lançamento
-    return { updated: { ...first, id: t.id, estimated: undefined }, created: rest };
+    return { updated: withOrigin({ ...first, id: t.id, estimated: undefined }), created: rest.map(withOrigin) };
   }
   const paid = paidAmount(t);
-  return { updated: { ...t, amount: paid, estimated: undefined }, created: [first, ...rest] };
+  return { updated: { ...t, amount: paid, estimated: undefined }, created: [first, ...rest].map(withOrigin) };
+}
+
+/**
+ * Desfaz o pagamento no cartão: junta a compra (e todas as parcelas) de volta numa
+ * conta a pagar em aberto. Funciona também para compras no cartão lançadas direto
+ * (sem `billOrigin`), que viram uma conta em aberto com o valor total.
+ */
+export function cardPaymentToBill(all: Transaction[], tx: Transaction): { put: Transaction; deleteIds: ID[] } {
+  if (!isCardTx(tx)) throw new Error('Este lançamento não está no cartão.');
+  const origin = tx.billOrigin;
+  const group = origin
+    ? all.filter((x) => x.billOrigin?.billId === origin.billId && isCardTx(x))
+    : tx.installment
+      ? all.filter((x) => x.installment?.groupId === tx.installment!.groupId)
+      : [tx];
+  group.sort((a, b) => (a.installment?.number ?? 0) - (b.installment?.number ?? 0));
+  const cardTotal = sum(group.map((x) => x.amount));
+  const billId = origin?.billId ?? group[0].id;
+  // conta que tinha pagamento parcial: o original ficou fora do cartão, só devolve o restante a ele
+  const original = all.find((x) => x.id === billId && !isCardTx(x));
+  if (original) {
+    return {
+      put: { ...original, amount: original.amount + cardTotal, estimated: origin?.estimated },
+      deleteIds: group.map((x) => x.id),
+    };
+  }
+  const base = group.find((x) => x.id === billId) ?? group[0];
+  return {
+    put: {
+      ...base,
+      id: billId,
+      amount: origin?.amount ?? cardTotal,
+      date: origin?.date ?? base.date,
+      paymentMethod: origin?.paymentMethod ?? 'boleto',
+      accountId: origin?.accountId,
+      description: origin?.description ?? base.description.replace(/\s*\(\d+\/\d+\)$/, ''),
+      estimated: origin?.estimated,
+      cardId: undefined,
+      invoiceMonth: undefined,
+      installment: undefined,
+      billOrigin: undefined,
+      payments: [],
+    },
+    deleteIds: group.map((x) => x.id).filter((id) => id !== billId),
+  };
 }

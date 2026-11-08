@@ -6,6 +6,7 @@ import {
   ensureSeed,
   payInvoice,
   payTransactionWithCard,
+  moveCardPurchaseToBill,
   registerPayment,
   saveCard,
   saveQuickEntry,
@@ -17,6 +18,7 @@ import {
   syncRecurrences,
   updateTransaction,
 } from '../finance';
+import { addAttachment } from '../attachments';
 import { exportBackup, restoreBackup, validateBackup } from '../backup';
 import { monthSummary, type DataSet } from '../../domain/reports';
 import { addMonthKey, monthEnd, today } from '../../domain/dates';
@@ -123,6 +125,23 @@ describe('serviços com IndexedDB', () => {
     expect(after.toPay).toBe(0); // vai vencer na fatura de dezembro
     const dez = monthSummary(await loadData(), '2026-12', '2026-11-08');
     expect(dez.toPay).toBe(33819);
+  });
+
+  it('desfazer pagamento no cartão devolve a conta para contas a pagar e tira da fatura', async () => {
+    await saveCard({ name: 'Nubank', limit: 500000, closingDay: 27, dueDay: 3, color: '#000' }, db);
+    const card = (await db.cards.toArray())[0];
+    const [conta] = await saveQuickEntry({ type: 'despesa', amount: 33819, date: '2026-11-10', paymentMethod: 'boleto', paid: false, description: 'Mensalidade' }, db);
+    const parts = await payTransactionWithCard(conta.id, { cardId: card.id, date: '2026-11-08', installments: 2 }, db);
+    await addAttachment({ name: 'c.pdf', type: 'application/pdf', size: 1, arrayBuffer: async () => new ArrayBuffer(1) }, { transactionId: parts[1].id }, db);
+    await moveCardPurchaseToBill(parts[1].id, db);
+    const all = await db.transactions.toArray();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id: conta.id, amount: 33819, description: 'Mensalidade', paymentMethod: 'boleto' });
+    expect(all[0].cardId).toBeUndefined();
+    expect((await db.attachments.toArray())[0].transactionId).toBe(conta.id);
+    const s = monthSummary(await loadData(), '2026-11', '2026-11-08');
+    expect(s.toPay).toBe(33819);
+    expect(monthSummary(await loadData(), '2026-12', '2026-11-08').toPay).toBe(0);
   });
 
   it('transferências validam contas', async () => {

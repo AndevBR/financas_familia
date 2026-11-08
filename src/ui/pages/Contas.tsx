@@ -25,7 +25,11 @@ export function ContasPage({ type, data, lookups }: { type: TxType; data: Financ
   const ref = today();
   const isPay = type === 'despesa';
 
-  const base = useMemo(() => data.transactions.filter((t) => t.type === type && !isCardTx(t)), [data.transactions, type]);
+  // contas pagas no cartão continuam visíveis aqui (aba Pagas), uma linha por conta
+  const base = useMemo(
+    () => data.transactions.filter((t) => t.type === type && (!isCardTx(t) || t.billOrigin?.billId === t.id)),
+    [data.transactions, type],
+  );
   const filtered = useMemo(() => filterTransactions(base, f), [base, f]);
   const list = useMemo(() => {
     let l = filtered;

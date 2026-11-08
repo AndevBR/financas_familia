@@ -1,4 +1,4 @@
-import { payWithCard, addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
+import { cardPaymentToBill, payWithCard, addPayment, applyAmountChange, buildTransactions, defaultDescription, isOverdue, openAmount, reopen, settle, statusLabel, txStatus, validateEntry } from '../transactions';
 import { card, newId, tx } from '../../test/helpers';
 
 describe('lançamentos', () => {
@@ -122,6 +122,58 @@ describe('lançamentos', () => {
       expect(() => payWithCard(tx({ type: 'receita' }), { card: c, date: '2026-11-08' }, newId)).toThrow();
       expect(() => payWithCard({ ...tx({ amount: 100 }), payments: [{ id: 'p', date: '2026-11-01', amount: 100 }] }, { card: c, date: '2026-11-08' }, newId)).toThrow();
       expect(() => payWithCard(tx({ cardId: 'nu' }), { card: c, date: '2026-11-08' }, newId)).toThrow();
+    });
+  });
+
+  describe('desfazer pagamento no cartão', () => {
+    const c = card({ id: 'nu', closingDay: 27, dueDay: 3 });
+
+    it('conta paga à vista no cartão volta exatamente como era', () => {
+      const conta = tx({ id: 'luz', description: 'Conta de luz', amount: 33819, date: '2026-11-10', paymentMethod: 'boleto', accountId: 'a1', categoryId: 'casa' });
+      const { updated } = payWithCard(conta, { card: c, date: '2026-11-08' }, newId);
+      const { put, deleteIds } = cardPaymentToBill([updated!], updated!);
+      expect(deleteIds).toEqual([]);
+      expect(put).toMatchObject({ id: 'luz', description: 'Conta de luz', amount: 33819, date: '2026-11-10', paymentMethod: 'boleto', accountId: 'a1', categoryId: 'casa', payments: [] });
+      expect(put.cardId).toBeUndefined();
+      expect(put.invoiceMonth).toBeUndefined();
+      expect(put.billOrigin).toBeUndefined();
+      expect(txStatus(put)).toBe('aberto');
+    });
+
+    it('parcelas do cartão voltam como uma conta só, a partir de qualquer parcela', () => {
+      const conta = tx({ id: 'escola', description: 'Escola', amount: 90000, date: '2026-11-05' });
+      const { updated, created } = payWithCard(conta, { card: c, date: '2026-11-08', installments: 3 }, newId);
+      const all = [updated!, ...created, tx({ id: 'outra', cardId: 'nu', invoiceMonth: '2026-12' })];
+      const { put, deleteIds } = cardPaymentToBill(all, created[1]); // clicou na parcela 3/3
+      expect(put).toMatchObject({ id: 'escola', description: 'Escola', amount: 90000, date: '2026-11-05' });
+      expect(put.installment).toBeUndefined();
+      expect(deleteIds.sort()).toEqual(created.map((t) => t.id).sort());
+      expect(deleteIds).not.toContain('outra');
+    });
+
+    it('conta com pagamento parcial: o restante do cartão volta para ela', () => {
+      const conta = { ...tx({ id: 'agua', amount: 10000 }), payments: [{ id: 'p', date: '2026-11-01', amount: 4000, accountId: 'a1' }] };
+      const { updated, created } = payWithCard(conta, { card: c, date: '2026-11-08', installments: 2 }, newId);
+      const { put, deleteIds } = cardPaymentToBill([updated!, ...created], created[0]);
+      expect(put).toMatchObject({ id: 'agua', amount: 10000 });
+      expect(put.payments).toHaveLength(1); // a parte paga pela conta continua
+      expect(txStatus(put)).toBe('parcial');
+      expect(deleteIds.sort()).toEqual(created.map((t) => t.id).sort());
+    });
+
+    it('compra parcelada lançada direto no cartão também pode virar conta a pagar', () => {
+      const parts = buildTransactions(
+        { type: 'despesa', amount: 60000, date: '2026-11-03', paymentMethod: 'credito', cardId: 'nu', paid: true, installments: 2 },
+        newId,
+        { description: 'Parcela empréstimo', card: c },
+      );
+      const { put, deleteIds } = cardPaymentToBill(parts, parts[1]);
+      expect(put).toMatchObject({ id: parts[0].id, amount: 60000, description: 'Parcela empréstimo', paymentMethod: 'boleto', payments: [] });
+      expect(deleteIds).toEqual([parts[1].id]);
+    });
+
+    it('recusa lançamento que não está no cartão', () => {
+      expect(() => cardPaymentToBill([], tx())).toThrow();
     });
   });
 });

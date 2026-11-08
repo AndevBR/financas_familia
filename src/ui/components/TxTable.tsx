@@ -3,7 +3,8 @@ import { formatDateBR, formatMonthShort, today } from '../../domain/dates';
 import { formatBRL } from '../../domain/money';
 import { isCardTx, isOverdue, openAmount, paidAmount, statusLabel, txStatus } from '../../domain/transactions';
 import type { Transaction } from '../../domain/types';
-import { deleteTransaction, reopenTransaction, settleTransaction } from '../../services/finance';
+import { deleteTransaction, settleTransaction } from '../../services/finance';
+import { useTxUndo } from './useTxUndo';
 import { useApp } from '../AppContext';
 import type { FinanceData, Lookups } from '../hooks/useFinance';
 import { Badge, EmptyState, Money } from './ui';
@@ -36,6 +37,7 @@ export function TxTable({
   compact?: boolean;
 }) {
   const { openEdit, openPayment, openAttachments, confirm, toast } = useApp();
+  const { undoPayment, undoCard } = useTxUndo(data);
   const attachCount = new Map<string, number>();
   data.attachments.forEach((a) => a.transactionId && attachCount.set(a.transactionId, (attachCount.get(a.transactionId) ?? 0) + 1));
   if (!txs.length) return <EmptyState title={emptyText} />;
@@ -162,7 +164,12 @@ export function TxTable({
                     </>
                   )}
                   {!isCardTx(t) && st === 'pago' && showOpen && (
-                    <button className="btn ghost sm icon" onClick={() => reopenTransaction(t.id).then(() => toast('Reaberto'))} title="Desfazer baixa" aria-label="Desfazer baixa">
+                    <button className="btn ghost sm icon" onClick={() => undoPayment(t)} title="Desfazer baixa" aria-label="Desfazer baixa">
+                      <RotateCcw size={15} />
+                    </button>
+                  )}
+                  {isCardTx(t) && t.billOrigin && (
+                    <button className="btn ghost sm icon" onClick={() => undoCard(t)} title="Desfazer pagamento no cartão (volta para contas a pagar)" aria-label="Desfazer pagamento no cartão">
                       <RotateCcw size={15} />
                     </button>
                   )}

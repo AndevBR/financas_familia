@@ -8,6 +8,7 @@ import { generateRecurrence, resumeRecurrence } from '../domain/recurrence';
 import {
   addPayment,
   payWithCard,
+  cardPaymentToBill,
   applyAmountChange,
   buildTransactions,
   defaultDescription,
@@ -171,6 +172,21 @@ export async function payTransactionWithCard(
     if (created.length) await db.transactions.bulkAdd(created);
   });
   return [...(updated ? [updated] : []), ...created];
+}
+
+/** Desfaz um pagamento no cartão: a compra (com todas as parcelas) volta a ser conta a pagar em aberto. */
+export async function moveCardPurchaseToBill(id: ID, db: FinanceDB = defaultDb): Promise<Transaction> {
+  return db.transaction('rw', db.transactions, db.attachments, async () => {
+    const t = await db.transactions.get(id);
+    if (!t) throw new Error('Lançamento não encontrado.');
+    const all = await db.transactions.toArray();
+    const { put, deleteIds } = cardPaymentToBill(all, t);
+    await db.transactions.bulkDelete(deleteIds);
+    await db.transactions.put(put);
+    // comprovantes das parcelas removidas passam para a conta
+    if (deleteIds.length) await db.attachments.where('transactionId').anyOf(deleteIds).modify({ transactionId: put.id });
+    return put;
+  });
 }
 
 export async function reopenTransaction(id: ID, db: FinanceDB = defaultDb) {

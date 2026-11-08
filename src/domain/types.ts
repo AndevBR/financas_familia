@@ -90,6 +90,16 @@ export interface Installment {
   totalAmount: Cents;
 }
 
+export interface BillOrigin {
+  billId: ID;
+  amount: Cents;
+  date: ISODate;
+  paymentMethod: PaymentMethod;
+  accountId?: ID;
+  description: string;
+  estimated?: boolean;
+}
+
 export interface Transaction {
   id: ID;
   type: TxType;
@@ -112,6 +122,8 @@ export interface Transaction {
   /** Valor estimado (recorrência de valor variável ainda não confirmada). */
   estimated?: boolean;
   installment?: Installment;
+  /** Conta a pagar que foi paga com o cartão: guarda como ela era, para poder desfazer. */
+  billOrigin?: BillOrigin;
   createdAt: string;
 }
 

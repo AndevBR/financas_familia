@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, RotateCcw, Sparkles } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { invoiceChoices, invoiceMonthFor } from '../../domain/cards';
 import { addDays, formatDateBR, formatMonth, today } from '../../domain/dates';
@@ -9,6 +9,7 @@ import { PAYMENT_METHOD_LABELS, type PaymentMethod, type Transaction, type TxTyp
 import { deleteTransaction, saveQuickEntry, updateTransaction } from '../../services/finance';
 import { useApp } from '../AppContext';
 import type { FinanceData } from '../hooks/useFinance';
+import { useTxUndo } from './useTxUndo';
 import { Autocomplete, Field, Modal, MoneyInput, Segmented } from './ui';
 
 interface Props {
@@ -112,6 +113,7 @@ function initialState(data: FinanceData, prefill?: Partial<QuickEntryInput>, edi
 
 export function TxFormModal({ data, onClose, prefill, editing }: Props) {
   const { toast, confirm } = useApp();
+  const { undoCard } = useTxUndo(data);
   const [f, setF] = useState<QuickEntryInput>(() => initialState(data, prefill, editing));
   const [more, setMore] = useState(!!editing && !!(editing.notes || editing.personId));
   const [errors, setErrors] = useState<string[]>([]);
@@ -236,9 +238,16 @@ export function TxFormModal({ data, onClose, prefill, editing }: Props) {
       footer={
         <>
           {editing && (
-            <button type="button" className="btn danger" onClick={remove} style={{ marginRight: 'auto' }}>
-              Excluir
-            </button>
+            <span className="row" style={{ marginRight: 'auto', gap: 8 }}>
+              <button type="button" className="btn danger" onClick={remove}>
+                Excluir
+              </button>
+              {editing.cardId && editing.type === 'despesa' && (
+                <button type="button" className="btn" onClick={async () => (await undoCard(editing)) && onClose()}>
+                  <RotateCcw size={14} /> {editing.billOrigin ? 'Desfazer pagamento no cartão' : 'Mover para contas a pagar'}
+                </button>
+              )}
+            </span>
           )}
           <button type="button" className="btn" onClick={onClose}>
             Cancelar
